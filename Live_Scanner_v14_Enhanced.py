@@ -41,6 +41,9 @@ STOCH_RECOVERY_BUFFER = 10.0
 
 DEFAULT_MAX_WORKERS = 3
 DEFAULT_BUY_STOCH_MAX = 80.0
+DEFAULT_CURRENT_VOLUME_MIN_RATIO = 0.60
+DEFAULT_US_MIN_ADV20_TURNOVER = 1_000_000.0
+DEFAULT_EXTREME_EXTENSION_REVIEW_ATR = 5.0
 
 
 _DAILY_HISTORY_CACHE: dict[tuple[str, str], pd.DataFrame] = {}
@@ -417,6 +420,9 @@ BALANCED_CONFIG = {
     "stoch_recovery_buffer": STOCH_RECOVERY_BUFFER,
     "continuation_volume_min_ratio": 0.80,
     "volume_history_min_percentile": 60.0,
+    "current_volume_min_ratio": DEFAULT_CURRENT_VOLUME_MIN_RATIO,
+    "us_min_adv20_turnover": DEFAULT_US_MIN_ADV20_TURNOVER,
+    "extreme_extension_review_atr": DEFAULT_EXTREME_EXTENSION_REVIEW_ATR,
     "prior_positive_early_stoch_max": 90.0,
     "prior_positive_continuation_stoch_max": 100.0,
     "historical_context_lookback": HISTORICAL_CONTEXT_LOOKBACK,
@@ -506,6 +512,40 @@ def build_as_of_date_list(as_of_date: str | None, as_of_dates: str | None) -> li
     return [None]
 
 
+def included_session_date(df: pd.DataFrame) -> str | None:
+    """Return the actual final daily session included in an evaluation frame."""
+    if df.empty:
+        return None
+    try:
+        return pd.Timestamp(df.index[-1]).date().isoformat()
+    except (TypeError, ValueError):
+        return None
+
+
+def summarize_data_through(results: list[dict]) -> str:
+    """Summarize successful rows' included session dates for run-level output."""
+    session_dates = set()
+    for result in results:
+        if result.get("status") == STATUS_ERROR:
+            continue
+        raw_date = result.get("session_date")
+        if raw_date in (None, ""):
+            continue
+        parsed_date = pd.to_datetime(raw_date, errors="coerce")
+        if not pd.isna(parsed_date):
+            session_dates.add(parsed_date.strftime("%Y-%m-%d"))
+
+    ordered_dates = sorted(session_dates)
+    if not ordered_dates:
+        return "Unavailable"
+    if len(ordered_dates) == 1:
+        return ordered_dates[0]
+    return (
+        f"{ordered_dates[0]} to {ordered_dates[-1]} "
+        f"({len(ordered_dates)} session dates)"
+    )
+
+
 def filter_to_as_of_date(df: pd.DataFrame, as_of_date: str) -> pd.DataFrame:
     as_of_ts = pd.Timestamp(as_of_date).normalize() + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
     if getattr(df.index, "tz", None) is not None and as_of_ts.tzinfo is None:
@@ -581,6 +621,82 @@ def get_config(preset_name: str = "balanced") -> dict:
     config = PRESETS[preset_key].copy()
     config["buy_stoch_max"] = DEFAULT_BUY_STOCH_MAX
     return config
+
+
+def has_supportive_volume(
+    volume_ratio: float | None,
+    volume_history_percentile: float | None,
+    config: dict,
+) -> bool:
+    """Apply the mandatory current-volume floor before alternate support paths."""
+    if volume_ratio is None:
+        return False
+
+    current_floor = float(
+        config.get(
+            "current_volume_min_ratio",
+            DEFAULT_CURRENT_VOLUME_MIN_RATIO,
+        )
+    )
+    if volume_ratio < current_floor:
+        return False
+
+    continuation_floor = float(
+        config.get("continuation_volume_min_ratio", 0.80)
+    )
+    history_floor = float(
+        config.get("volume_history_min_percentile", 60.0)
+    )
+    return bool(
+        volume_ratio >= continuation_floor
+        or (
+            volume_history_percentile is not None
+            and volume_history_percentile >= history_floor
+        )
+    )
+
+
+def is_confirmed_positive_macd_crossover(
+    previous_macd: float,
+    previous_signal: float,
+    current_macd: float,
+    current_signal: float,
+) -> bool:
+    """Require a fresh bullish MACD signal-line crossover above zero."""
+    return bool(
+        previous_macd <= previous_signal
+        and current_macd > current_signal
+        and current_macd > 0
+        and current_signal > 0
+    )
+
+
+def is_sustained_positive_histogram_expansion(
+    histogram_values: list[float],
+) -> bool:
+    """Require every observed histogram bar to be positive and expanding."""
+    return bool(
+        len(histogram_values) >= 2
+        and all(value > 0 for value in histogram_values)
+        and all(
+            left < right
+            for left, right in zip(histogram_values, histogram_values[1:])
+        )
+    )
+
+
+def is_sustained_positive_histogram_contraction(
+    histogram_values: list[float],
+) -> bool:
+    """Identify cooling only while every observed histogram bar stays positive."""
+    return bool(
+        len(histogram_values) >= 2
+        and all(value > 0 for value in histogram_values)
+        and all(
+            left > right
+            for left, right in zip(histogram_values, histogram_values[1:])
+        )
+    )
 
 
 def build_weekly_data(
@@ -1008,6 +1124,8 @@ def confidence_label(score: int, maximum: int = 10) -> str:
 
 def end_user_classification(status: str, output_signal: str, setup_type: str | None = None) -> str:
     if status == STATUS_BUY_SIGNAL:
+        if "EXTENDED_REVIEW" in str(setup_type or ""):
+            return "BUY_EXTENDED_REVIEW"
         return {
             "Buy_Pullback_Oversold_Recovery": "BUY#1",
             "Buy_EMA20_Midrange_Recovery": "BUY#2",
@@ -1020,25 +1138,27 @@ def end_user_classification(status: str, output_signal: str, setup_type: str | N
 
 def end_user_reason(status: str, output_signal: str, setup_type: str | None = None) -> str:
     if status == STATUS_BUY_SIGNAL:
+        if "EXTENDED_REVIEW" in str(setup_type or ""):
+            return "Extreme momentum review"
         return {
             "Buy_Pullback_Oversold_Recovery": "Oversold recovery",
             "Buy_EMA20_Midrange_Recovery": "EMA20 recovery",
             "Buy_Momentum_Extension": "Momentum continuation",
-            "Buy_Early_Momentum": "Early momentum continuation",
+            "Buy_Early_Momentum": "Positive-phase MACD crossover",
         }.get(output_signal, "Buy confirmed")
 
     return {
         "Ignore_Daily_Trend": "Daily trend not aligned",
         "Ignore_Weekly_Trend": "Weekly trend not aligned",
         "Hold_Buy_Stochastic_Above_Limit": "BUY stochastic limit exceeded",
+        "Hold_Buy_Liquidity_Below_Minimum": "U.S. liquidity below minimum",
         "Reject_Exhaustion": "Setup exhausted",
         "Hold_Pullback_Recovery_Volume_Pending": "Pullback volume pending",
         "Hold_EMA20_Recovery_Volume_Pending": "EMA20 volume pending",
         "Hold_Pullback_Stochastic_Pending": "Stochastic pending",
-        "Hold_Momentum_Building": "Momentum building",
-        "Hold_Pre_Bull_Crossover_Watch": "Pre-bull crossover",
+        "Hold_MACD_Momentum_Not_Confirmed": "MACD momentum not confirmed",
+        "Hold_MACD_Zero_Gate_Not_Met": "MACD zero gate not met",
         "Hold": "Trend intact",
-        "Hold_Momentum_Building": "Momentum building",
         "Error_Insufficient_History": "Insufficient history",
         "Error_Insufficient_Weekly_History": "Insufficient weekly history",
         "Error_NullValuesFound": "Indicator null values",
@@ -1047,6 +1167,99 @@ def end_user_reason(status: str, output_signal: str, setup_type: str | None = No
         "Error_Missing_OHLCV_Data": "Missing OHLCV data",
         "Error_InternalError": "Internal error",
     }.get(output_signal, "No buy")
+
+
+def apply_buy_quality_policies(
+    result: dict,
+    market_key: str,
+    config: dict,
+) -> dict:
+    """Apply approved listing-liquidity and extreme-extension BUY policies."""
+    updated = dict(result)
+    is_us_listing = str(market_key or "").upper() == "US"
+    minimum_turnover = float(
+        config.get(
+            "us_min_adv20_turnover",
+            DEFAULT_US_MIN_ADV20_TURNOVER,
+        )
+    )
+    turnover = pd.to_numeric(
+        updated.get("average_daily_turnover_20"),
+        errors="coerce",
+    )
+    turnover_value = None if pd.isna(turnover) else float(turnover)
+    liquidity_floor_passed = (
+        None
+        if not is_us_listing or turnover_value is None
+        else turnover_value >= minimum_turnover
+    )
+
+    extension_threshold = float(
+        config.get(
+            "extreme_extension_review_atr",
+            DEFAULT_EXTREME_EXTENSION_REVIEW_ATR,
+        )
+    )
+    distance_atr = pd.to_numeric(
+        updated.get("ema50_distance_atr"),
+        errors="coerce",
+    )
+    distance_value = None if pd.isna(distance_atr) else float(distance_atr)
+    extreme_extension_review = bool(
+        distance_value is not None and distance_value > extension_threshold
+    )
+
+    updated["minimum_adv20_turnover"] = (
+        minimum_turnover if is_us_listing else None
+    )
+    updated["liquidity_floor_passed"] = liquidity_floor_passed
+    updated["extreme_extension_review_atr"] = extension_threshold
+    updated["extreme_extension_review"] = extreme_extension_review
+
+    if updated.get("status") != STATUS_BUY_SIGNAL:
+        return updated
+
+    original_buy_signal = str(updated.get("output_signal") or "BUY")
+    setup_type = str(updated.get("setup_type") or "BUY")
+    details = str(updated.get("message_details") or "").strip()
+
+    if is_us_listing and liquidity_floor_passed is not True:
+        updated["status"] = STATUS_HOLD
+        updated["output_signal"] = "Hold_Buy_Liquidity_Below_Minimum"
+        updated["setup_type"] = f"{setup_type}_LIQUIDITY_FLOOR"
+        updated["classification"] = "NO_BUY"
+        updated["reason"] = "U.S. liquidity below minimum"
+        updated["OUT_MESSAGE"] = "NO_BUY"
+        updated["output_message"] = "NO_BUY"
+        updated["message"] = "NO_BUY"
+        updated["risk_level"] = "Liquidity Below Minimum"
+        policy_detail = (
+            f"WithheldSignal={original_buy_signal}; "
+            f"ADV20Turnover={turnover_value if turnover_value is not None else 'Unavailable'}; "
+            f"MinimumADV20Turnover={minimum_turnover:.2f}"
+        )
+        updated["message_details"] = " | ".join(
+            part for part in (details, policy_detail) if part
+        )
+        return updated
+
+    if extreme_extension_review:
+        updated["setup_type"] = f"{setup_type}_EXTENDED_REVIEW"
+        updated["classification"] = "BUY_EXTENDED_REVIEW"
+        updated["reason"] = "Extreme momentum review"
+        updated["OUT_MESSAGE"] = "BUY_EXTENDED_REVIEW"
+        updated["output_message"] = "BUY_EXTENDED_REVIEW"
+        updated["message"] = "BUY_EXTENDED_REVIEW"
+        updated["risk_level"] = "Extreme Extension Review"
+        policy_detail = (
+            f"ExtendedReview=True; EMA50Distance={distance_value:.3f}ATR; "
+            f"ReviewThreshold={extension_threshold:.2f}ATR"
+        )
+        updated["message_details"] = " | ".join(
+            part for part in (details, policy_detail) if part
+        )
+
+    return updated
 
 
 def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
@@ -1158,20 +1371,25 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
     hist3 = frame["macd_hist"].dropna().iloc[-3:].astype(float).tolist()
     hist_expanding_3 = (
         len(hist_values) == hist_lookback
-        and hist_values[-1] > 0
-        and all(left < right for left, right in zip(hist_values, hist_values[1:]))
+        and is_sustained_positive_histogram_expansion(hist_values)
     )
     hist_contracting_3 = (
         len(hist_values) == hist_lookback
-        and hist_values[-1] > 0
-        and all(left > right for left, right in zip(hist_values, hist_values[1:]))
+        and is_sustained_positive_histogram_contraction(hist_values)
     )
-    hist_improving = hist > hist_prev
     macd_bullish = macd > signal
     macd_above_zero = macd > 0 and signal > 0
-    bull_crossover = macd > signal and macd > 0
-    pre_bull_crossover = macd < signal and hist < 0 and hist_improving
-
+    positive_macd_regime = bool(
+        macd_bullish
+        and macd_above_zero
+        and hist > 0
+    )
+    bull_crossover = is_confirmed_positive_macd_crossover(
+        float(prev["macd"]),
+        float(prev["macd_signal"]),
+        macd,
+        signal,
+    )
     adx_value = float(latest["adx"])
     adx_name, adx_points = adx_band(adx_value, config)
     rsi_value = float(latest["rsi"])
@@ -1276,21 +1494,20 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
     )
 
     volume_history_percentile = volume_history["percentile"]
-    continuation_volume_floor = float(
-        config.get("continuation_volume_min_ratio", 0.80)
-    )
-    volume_history_floor = float(
-        config.get("volume_history_min_percentile", 60.0)
-    )
-    volume_supportive = bool(
-        volume_ratio is not None
-        and (
-            volume_ratio >= continuation_volume_floor
-            or (
-                volume_history_percentile is not None
-                and volume_history_percentile >= volume_history_floor
-            )
+    current_volume_minimum = float(
+        config.get(
+            "current_volume_min_ratio",
+            DEFAULT_CURRENT_VOLUME_MIN_RATIO,
         )
+    )
+    volume_floor_passed = bool(
+        volume_ratio is not None
+        and volume_ratio >= current_volume_minimum
+    )
+    volume_supportive = has_supportive_volume(
+        volume_ratio,
+        volume_history_percentile,
+        config,
     )
     volume_price_impulse = (
         volume_ratio * price_move_atr
@@ -1328,7 +1545,6 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
     valid_shallow_pullback = bool(
         ema20_support
         and stoch_mid_crossed_up
-        and hist_improving
     )
 
     lookback = max(2, int(config.get("stoch_recent_lookback", STOCH_RECENT_LOOKBACK)))
@@ -1366,24 +1582,21 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
 
     momentum_continuation = bool(
         macro_trend_ok and weekly_trend_ok
-        and macd_bullish and macd_above_zero
-        and hist > 0 and (hist_expanding_3 or hist_improving)
+        and positive_macd_regime
+        and hist_expanding_3
         and current_day_positive
         and continuation_volume_ok
     )
     early_momentum = bool(
         macro_trend_ok and weekly_trend_ok
-        and pre_bull_crossover
-        and macd > 0 and signal > 0
+        and bull_crossover
+        and hist > 0
         and stoch_k > stoch_d
         and current_day_positive
         and continuation_volume_ok
     )
     established_trend = bool(
-        macd_bullish and macd_above_zero
-    )
-    recovering_momentum = bool(
-        macd_bullish and hist_improving
+        positive_macd_regime
     )
 
     metrics = {
@@ -1445,13 +1658,12 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
         "macd_hist": round(hist, 3), "macd_hist_prev": round(hist_prev, 3),
         "macd_hist_3bar": ",".join(f"{x:.3f}" for x in hist3),
         "macd_state": (
-            "BULL_EXPANDING_3BAR" if macd_bullish and hist_expanding_3
-            else "BULL_IMPROVING" if macd_bullish and hist_improving
-            else "BULL_COOLING_3BAR" if macd_bullish and hist_contracting_3
-            else "BULL_CROSS" if bull_crossover
-            else "PRE_BULL_CROSS" if pre_bull_crossover
-            else "BULL_BELOW_ZERO" if macd_bullish and not macd_above_zero
-            else "BEARISH"
+            "BULL_CROSS" if bull_crossover
+            else "BULL_EXPANDING_3BAR" if positive_macd_regime and hist_expanding_3
+            else "BULL_COOLING_3BAR" if positive_macd_regime and hist_contracting_3
+            else "BULL_POSITIVE" if positive_macd_regime
+            else "POSITIVE_PHASE_UNCONFIRMED" if macd > 0 and signal > 0
+            else "MACD_ZERO_GATE_NOT_MET"
         ),
         "adx": round(adx_value, 2), "adx_band": adx_name,
         "adx_1y_max": (
@@ -1521,6 +1733,8 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
             else None
         ),
         "volume_ratio": round(volume_ratio, 3) if volume_ratio is not None else None,
+        "minimum_volume_ratio": current_volume_minimum,
+        "volume_floor_passed": volume_floor_passed,
         "volume_1y_percentile": (
             round(volume_history_percentile, 2)
             if volume_history_percentile is not None
@@ -1594,7 +1808,8 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
         (
             f"VolumeRatio={volume_ratio:.2f}x "
             f"(1YPercentile={volume_history_percentile:.1f}; "
-            f"Supportive={volume_supportive})"
+            f"Minimum={current_volume_minimum:.2f}x; "
+            f"FloorPassed={volume_floor_passed}; Supportive={volume_supportive})"
             if volume_ratio is not None and volume_history_percentile is not None
             else f"VolumeRatio={volume_ratio:.2f}x"
             if volume_ratio is not None
@@ -1611,8 +1826,8 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
     score = 0
     score += 2 if macro_trend_ok else 0
     score += 2 if weekly_trend_ok else 0
-    score += 2 if macd_bullish and macd_above_zero else (1 if macd_bullish else 0)
-    score += 2 if hist_expanding_3 else (1 if hist_improving else 0)
+    score += 2 if positive_macd_regime else 0
+    score += 2 if hist_expanding_3 else (1 if positive_macd_regime else 0)
     score += adx_relative_points
     score += 1 if continuation_volume_ok else 0
     score += 1 if current_day_positive and volume_supportive else 0
@@ -1701,26 +1916,30 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
             status, output_signal, setup_type = STATUS_HOLD, "Hold_Pullback_Stochastic_Pending", "PULLBACK_FORMING"
             out_message = "Stochastic reversal pending"
             risk_level = "Trigger Pending"
-        elif macd_bullish and hist_contracting_3:
+        elif positive_macd_regime and hist_contracting_3:
             status, output_signal, setup_type = STATUS_HOLD, "Hold", "MOMENTUM_COOLING"
             out_message = "Momentum cooling"
             risk_level = "Momentum Cooling"
-        elif pre_bull_crossover and price_in_safe_buy_zone:
-            status, output_signal, setup_type = STATUS_HOLD, "Hold_Pre_Bull_Crossover_Watch", "PRE_BULL_CROSSOVER"
-            out_message = "Pre-bull crossover watch"
-            risk_level = "Crossover Pending"
-        elif recovering_momentum and price_in_safe_buy_zone:
-            status, output_signal, setup_type = STATUS_HOLD, "Hold_Momentum_Building", "MOMENTUM_RECOVERY"
-            out_message = "Momentum rebuilding"
-            risk_level = "Confirmation Pending"
         elif established_trend:
             status, output_signal, setup_type = STATUS_HOLD, "Hold", "ESTABLISHED_TREND"
             out_message = "Trend intact; no entry"
             risk_level = "No Fresh Entry"
-        else:
-            status, output_signal, setup_type = STATUS_HOLD, "Hold", "TREND_NO_ENTRY"
-            out_message = "Trend intact; no confirmation"
+        elif macd > 0 and signal > 0:
+            status, output_signal, setup_type = (
+                STATUS_HOLD,
+                "Hold_MACD_Momentum_Not_Confirmed",
+                "POSITIVE_TREND_MACD_UNCONFIRMED",
+            )
+            out_message = "Positive trend; MACD momentum not confirmed"
             risk_level = "Momentum Not Confirmed"
+        else:
+            status, output_signal, setup_type = (
+                STATUS_HOLD,
+                "Hold_MACD_Zero_Gate_Not_Met",
+                "TREND_MACD_ZERO_GATE_NOT_MET",
+            )
+            out_message = "Positive price trend; MACD zero gate not met"
+            risk_level = "MACD Regime Not Qualified"
 
     base_buy_stoch_max = max(
         0.0, float(config.get("buy_stoch_max", DEFAULT_BUY_STOCH_MAX))
@@ -1860,6 +2079,11 @@ def evaluate_stock_momentum(
         "setup_type": None,
         "extension_state": None,
         "volume_ratio": None,
+        "minimum_volume_ratio": config.get(
+            "current_volume_min_ratio",
+            DEFAULT_CURRENT_VOLUME_MIN_RATIO,
+        ),
+        "volume_floor_passed": None,
         "ema50_distance_atr": None,
         "adx": None,
         "adx_band": None,
@@ -1883,6 +2107,13 @@ def evaluate_stock_momentum(
         "volume": None,
         "volume_avg_20": None,
         "average_daily_turnover_20": None,
+        "minimum_adv20_turnover": None,
+        "liquidity_floor_passed": None,
+        "extreme_extension_review_atr": config.get(
+            "extreme_extension_review_atr",
+            DEFAULT_EXTREME_EXTENSION_REVIEW_ATR,
+        ),
+        "extreme_extension_review": None,
         "volume_1y_percentile": None,
         "volume_pct_1y_max": None,
         "volume_supportive": None,
@@ -2224,6 +2455,11 @@ def evaluate_stock_momentum(
                 "reason": provisional_reason,
             })
 
+        result = apply_buy_quality_policies(
+            result,
+            _fallback_market_key(ticker_symbol),
+            config,
+        )
         result["summary_message"] = ""
         result["as_of_date"] = as_of_date
         result["exchange"] = market_context["market"]
@@ -2233,7 +2469,9 @@ def evaluate_stock_momentum(
         result["data_mode"] = market_context["effective_mode"]
         result["market_time_local"] = market_context["market_time_local"]
         result["market_time_et"] = market_context["market_time_et"]
-        result["session_date"] = market_context["session_date"]
+        result["session_date"] = (
+            included_session_date(df) or market_context["session_date"]
+        )
         result["candle_state"] = market_context["candle_state"]
         result["data_note"] = market_context["reason"]
         return result
@@ -2673,7 +2911,8 @@ if __name__ == "__main__":
         run_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         as_of_label = as_of_date if as_of_date else datetime.now().strftime('%Y-%m-%d')
         initial_summary_message = (
-            f"Summary | AsOf={as_of_label} | Input={input_ticker_count} | "
+            f"Summary | AsOf={as_of_label} | DataThrough=PENDING | "
+            f"Input={input_ticker_count} | "
             f"Total={total_tickers} | Workers={max_workers} | "
             f"HistoryGuidance={historical_guidance_scope} | "
             f"BuyStochMax={config['buy_stoch_max'] or 'OFF'} | "
@@ -2706,8 +2945,10 @@ if __name__ == "__main__":
         )
 
         processed_tickers = len(unordered_results)
+        data_through = summarize_data_through(unordered_results)
         summary_message = (
-            f"Summary | AsOf={as_of_label} | Input={input_ticker_count} | "
+            f"Summary | AsOf={as_of_label} | DataThrough={data_through} | "
+            f"Input={input_ticker_count} | "
             f"Total={total_tickers} | Workers={max_workers} | "
             f"HistoryGuidance={historical_guidance_scope} | "
             f"BuyStochMax={config['buy_stoch_max'] or 'OFF'} | "
@@ -2722,6 +2963,7 @@ if __name__ == "__main__":
         all_rows_for_output.extend(unordered_results)
         date_level_summary_rows.append({
             "as_of_date": as_of_label,
+            "data_through": data_through,
             "input_tickers": input_ticker_count,
             "total_tickers": total_tickers,
             "historical_guidance_scope": historical_guidance_scope,
@@ -2757,6 +2999,8 @@ if __name__ == "__main__":
         "stoch_d", "stoch_k_1y_min", "stoch_k_1y_max",
         "stoch_k_1y_percentile", "stoch_k_pct_1y_max", "volume",
         "volume_avg_20", "average_daily_turnover_20", "volume_ratio",
+        "minimum_volume_ratio", "volume_floor_passed",
+        "minimum_adv20_turnover", "liquidity_floor_passed",
         "volume_1y_percentile", "volume_pct_1y_max",
         "volume_supportive", "volume_price_impulse",
         "historical_context_sessions",
@@ -2776,6 +3020,7 @@ if __name__ == "__main__":
         "prior_strength_override",
         "effective_buy_stoch_max",
         "weekly_ema_20", "weekly_ema_50", "weekly_price", "signal_score",
+        "extreme_extension_review_atr", "extreme_extension_review",
         "summary_message", "message",
     ]
 
@@ -2808,6 +3053,8 @@ if __name__ == "__main__":
             f"Started              : {execution_started.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Completed            : {execution_finished.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Elapsed              : {elapsed_text}",
+            f"As-of label          : {final_summary.get('as_of_date', 'Unavailable')}",
+            f"Data through         : {final_summary.get('data_through', 'Unavailable')}",
             f"Input file           : {args.input if not args.codes else 'Direct command-line codes'}",
             f"Codes read           : {input_ticker_count}",
             f"Codes selected       : {total_tickers}",

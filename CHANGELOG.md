@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-07-27 - V14 Enhanced positive-regime scope correction
+
+- Removed pre-bull/pre-bear crossover concepts from V14 Enhanced classification.
+- Removed the generic one-bar histogram-improvement shortcut from continuation,
+  pullback, confidence scoring, and HOLD labels.
+- Required MACD, signal, and histogram to confirm an established positive MACD
+  regime before any pullback BUY path can qualify.
+- Required all bars in the configured histogram window to be positive and
+  strictly expanding for momentum-continuation BUY eligibility.
+- Added strict HOLD outcomes for positive price trends whose MACD momentum is
+  unconfirmed or whose MACD zero gate is not met.
+- Added boundary tests covering negative histogram improvement, negative-to-
+  positive transitions, non-sustained one-bar improvement, and positive cooling.
+
+## Unreleased
+
+### Added
+
+- Prominent `DataThrough` reporting in per-run messages, terminal/log summaries,
+  and the workbook Summary sheet.
+- Approved P1 quality fields for the mandatory volume floor, U.S. ADV20
+  liquidity floor, and extreme-extension review state.
+- Unit coverage for single-session, mixed-market, and all-error data-through
+  summaries, plus boundary coverage for all three P1 policies.
+
+### Changed
+
+- Detail rows now report the actual final daily session included in the
+  evaluation frame instead of repeating a weekend, holiday, or requested
+  historical as-of label.
+- BUY#4 now requires a fresh bullish MACD signal-line crossover with both lines
+  above zero and a positive histogram. Negative-histogram improvement is outside
+  the engine's signal mandate and receives no pre-crossover classification.
+- Current volume ratio must be at least `0.60` before the immediate-ratio or
+  one-year-percentile volume-support paths can qualify a BUY.
+- U.S. BUY candidates must have at least USD 1 million prior-20-session average
+  daily turnover; candidates below the floor become HOLD/`NO_BUY`.
+- BUY candidates more than 5 ATR above EMA50 retain BUY status but are labeled
+  `BUY_EXTENDED_REVIEW`.
+- Detail output expanded from 107 to 113 columns for explicit policy audit
+  fields.
+
 ## 2026-07-25 — V14 Enhanced handover
 
 ### Added

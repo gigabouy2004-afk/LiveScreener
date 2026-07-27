@@ -6,6 +6,10 @@ V14 Enhanced is a fast, independent, per-ticker baseline status scanner. Its
 purpose is to reduce the time required to screen a large code list while
 preserving the broad recall needed for a separate end-user verification stage.
 
+Its signal mandate is limited to established positive setup, trend, and momentum
+conditions. It does not identify or classify anticipated pre-bull or pre-bear
+crossovers.
+
 It is not:
 
 - a universe-relative ranker;
@@ -87,7 +91,10 @@ Provisional intraday BUYs are downgraded to HOLD until the candle is completed.
 
 The output fields `session_date`, `candle_state`, `market_phase`, `data_mode`,
 and `data_note` are authoritative for the included market session. A run-level
-`as_of_date` can be a weekend or holiday.
+`as_of_date` can be a weekend or holiday. Run summaries therefore display
+`DataThrough`, derived from successful rows' actual final included daily
+sessions. A mixed-market run displays the earliest and latest included session
+dates and the number of distinct session dates.
 
 ### 3.3 International listings and currency
 
@@ -138,11 +145,15 @@ Daily misalignment produces `Ignore_Daily_Trend`. Weekly misalignment produces
 - MACD above its signal;
 - MACD and signal both above zero;
 - positive histogram;
-- histogram improving or expanding;
+- every histogram bar in the configured expansion window positive and expanding;
 - a positive current session; and
 - supportive volume.
 
 RSI and ADX do not have universal upper rejection limits.
+
+A qualified BUY more than 5 ATR above EMA50 retains BUY status but is presented
+as `BUY_EXTENDED_REVIEW`. This preserves recall while preventing extreme
+momentum from appearing equivalent to an ordinary BUY.
 
 ### 4.4 Early momentum
 
@@ -150,14 +161,16 @@ RSI and ADX do not have universal upper rejection limits.
 
 - daily and weekly trend alignment;
 - MACD and signal both above zero;
-- MACD still below signal;
-- a negative but improving MACD histogram;
+- MACD crossing from at or below its signal to above the signal;
+- a positive MACD histogram;
 - stochastic K above D;
 - a positive current session; and
 - supportive volume.
 
-This path is intended to detect positive-phase recovery before the MACD bull
-crossover completes.
+An improving negative histogram is not a signal in this engine. It cannot
+qualify a BUY, increase confidence, or produce a pre-crossover classification.
+When price trends remain aligned but MACD momentum is not confirmed, the ticker
+is retained as a strict HOLD or ignored under the applicable trend rule.
 
 ### 4.5 Pullback paths
 
@@ -167,7 +180,8 @@ Established positive trends may also produce:
 - `Buy_EMA20_Midrange_Recovery`.
 
 These require the relevant stochastic/EMA recovery and the stronger preset
-volume confirmation.
+volume confirmation. They also require the established positive MACD regime:
+MACD above signal, MACD and signal above zero, and a positive histogram.
 
 ## 5. Historical context
 
@@ -211,12 +225,16 @@ does not refetch the same ticker/period repeatedly.
 
 ## 6. Volume semantics
 
-The balanced preset currently defines supportive volume as:
+The balanced preset defines supportive volume as:
 
 ```text
-volume_ratio >= 0.80
-OR
-one_year_absolute_volume_percentile >= 60
+volume_ratio >= 0.60
+AND
+(
+    volume_ratio >= 0.80
+    OR
+    one_year_absolute_volume_percentile >= 60
+)
 ```
 
 The design recognizes two forms of participation:
@@ -224,9 +242,9 @@ The design recognizes two forms of participation:
 - current volume relative to the ticker's immediate 20-session baseline; and
 - current absolute volume relative to the ticker's own one-year distribution.
 
-This OR rule preserves recall, but the 2026-07-25 audit showed that it can call
-volume supportive when current volume is less than 0.60 times the immediate
-20-session average. This is a documented open hardening decision.
+The mandatory `0.60` floor prevents historical participation from overriding
+materially weak current participation. Preset-specific immediate-ratio
+thresholds still apply inside the parenthesized support paths.
 
 `average_daily_turnover_20` is reported as:
 
@@ -234,7 +252,11 @@ volume supportive when current volume is less than 0.60 times the immediate
 prior 20-session average volume * current listing-currency price
 ```
 
-No absolute turnover gate is currently enabled.
+For U.S. listings, a BUY candidate must have at least USD 1 million ADV20
+turnover. A candidate below that floor becomes HOLD with
+`Hold_Buy_Liquidity_Below_Minimum`. No absolute turnover gate is applied to
+international listings until currency-aware or exchange-specific policies are
+defined.
 
 ## 7. Stochastic handling
 
@@ -263,9 +285,10 @@ The principal end-user classifications are:
 - `BUY#2` — EMA20 midrange recovery;
 - `BUY#3` — momentum continuation;
 - `BUY#4` — early momentum; and
+- `BUY_EXTENDED_REVIEW` — a retained BUY more than 5 ATR above EMA50; and
 - `NO_BUY` — HOLD, IGNORE, REJECT, or ERROR.
 
-The 107-column detail output includes trend, momentum, volume, historical,
+The 113-column detail output includes trend, momentum, volume, historical,
 session, currency, risk, and guidance fields. `message_details` is the concise
 human-readable trace of why the row received its signal.
 
@@ -285,14 +308,11 @@ human-readable trace of why the row received its signal.
 
 Always use quoted paths in PowerShell when a path can contain spaces.
 
-## 10. Known limitations and open decisions
+## 10. Current safeguards and remaining limitations
 
-### 10.1 Low current participation
+### 10.1 Current participation floor
 
-Eleven of the 74 BUYs in the 2026-07-25 full-U.S. run had volume ratios below
-0.60. Historical absolute-volume percentile was sufficient to qualify them.
-
-Proposed, not implemented:
+The approved minimum is implemented as:
 
 ```text
 require volume_ratio >= 0.60
@@ -300,21 +320,16 @@ and then allow:
 volume_ratio >= 0.80 OR one_year_volume_percentile >= 60
 ```
 
-### 10.2 Minimum liquidity
+### 10.2 U.S. minimum liquidity
 
-Nine of the 74 BUYs had prior-20-session average daily turnover below USD
-1 million. NOEM and SAIH were approximately USD 14 thousand and USD 29 thousand.
+U.S. BUY candidates now require USD 1 million prior-20-session average daily
+turnover. International use remains ungated because it requires currency
+conversion or explicit exchange/currency policies.
 
-A U.S.-only turnover threshold is straightforward. International use requires
-currency conversion or explicit exchange/currency policies.
+### 10.3 Extreme momentum review
 
-### 10.3 Momentum extension
-
-Twenty-six BUYs were more than 3 ATR above EMA50, and four were more than 5 ATR
-above EMA50. The engine reports extension risk but does not veto the signal.
-
-Proposed, not implemented: retain recall but label candidates beyond 5 ATR as
-`BUY_EXTENDED_REVIEW`.
+The engine retains BUY recall beyond 5 ATR from EMA50 but labels those candidates
+`BUY_EXTENDED_REVIEW` and assigns an Extreme Extension Review risk level.
 
 ### 10.4 Market-data quality
 
@@ -327,9 +342,10 @@ reintroducing universal RSI/ADX caps.
 
 ### 10.5 Displayed run date
 
-The summary `AsOf` value can show the wall-clock date while `session_date`
-correctly shows the last completed exchange session. A future revision should
-surface `DataThrough=<session_date>` in the summary.
+The summary `AsOf` value can show the wall-clock or requested historical date,
+while `session_date` shows the actual last included exchange session.
+`DataThrough` makes that distinction prominent in per-run messages, terminal
+and text-log output, and the workbook Summary sheet.
 
 ## 11. Verification commands
 
