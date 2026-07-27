@@ -404,6 +404,58 @@ def drop_trailing_incomplete_daily_row(df: pd.DataFrame) -> pd.DataFrame:
     return df.iloc[:-1].copy()
 
 
+def regular_session_elapsed_fraction(
+    market_context: dict,
+    observation_time: datetime | pd.Timestamp | None = None,
+) -> float | None:
+    """Return the completed fraction of the listing's regular session."""
+    if market_context.get("phase") != "REGULAR":
+        return None
+
+    regular_start = market_context.get("_regular_start")
+    regular_end = market_context.get("_regular_end")
+    observed_at = observation_time or market_context.get("_now_local")
+    if regular_start is None or regular_end is None or observed_at is None:
+        return None
+
+    try:
+        observed_at = pd.Timestamp(observed_at).to_pydatetime()
+        duration_seconds = (regular_end - regular_start).total_seconds()
+        elapsed_seconds = (
+            min(max(observed_at, regular_start), regular_end) - regular_start
+        ).total_seconds()
+    except (TypeError, ValueError):
+        return None
+
+    if duration_seconds <= 0 or elapsed_seconds <= 0:
+        return None
+    return min(1.0, elapsed_seconds / duration_seconds)
+
+
+def calculate_session_paced_volume_ratios(
+    current_volume: float | None,
+    average_daily_volume: float | None,
+    session_elapsed_fraction: float | None,
+) -> tuple[float | None, float | None]:
+    """Return raw and elapsed-session-adjusted daily volume ratios."""
+    if (
+        current_volume is None
+        or average_daily_volume is None
+        or average_daily_volume <= 0
+    ):
+        return None, None
+
+    raw_ratio = current_volume / average_daily_volume
+    if (
+        session_elapsed_fraction is None
+        or session_elapsed_fraction <= 0
+        or session_elapsed_fraction >= 1
+    ):
+        return raw_ratio, raw_ratio
+
+    return raw_ratio, raw_ratio / session_elapsed_fraction
+
+
 BALANCED_CONFIG = {
     # ADX thresholds below are descriptive score bands only. They do not
     # qualify, reject, or cap a ticker.
@@ -780,6 +832,14 @@ def merge_intraday_session_candle(
                 merged.at[new_idx, action_column] = 0.0
 
     merged.attrs["current_candle_partial"] = current_candle_partial
+    merged.attrs["volume_session_fraction"] = (
+        regular_session_elapsed_fraction(
+            market_context,
+            observation_time=intraday.index[-1],
+        )
+        if current_candle_partial
+        else None
+    )
     return merged
 
 
@@ -1347,9 +1407,21 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
         current_volume = float(volume_series.iloc[-1])
         volume_avg_20 = float(volume_series.iloc[-VOLUME_LOOKBACK - 1:-1].mean())
 
-    volume_ratio = None
-    if current_volume is not None and volume_avg_20 and volume_avg_20 > 0:
-        volume_ratio = current_volume / volume_avg_20
+    volume_session_fraction = frame.attrs.get("volume_session_fraction")
+    volume_ratio_raw, volume_ratio = calculate_session_paced_volume_ratios(
+        current_volume,
+        volume_avg_20,
+        volume_session_fraction,
+    )
+    if (
+        volume_session_fraction is not None
+        and 0 < float(volume_session_fraction) < 1
+    ):
+        volume_ratio_basis = "SESSION_PACED"
+    elif bool(frame.attrs.get("current_candle_partial", False)):
+        volume_ratio_basis = "RAW_PARTIAL"
+    else:
+        volume_ratio_basis = "FULL_SESSION"
 
     price = float(latest["close"])
     ema20 = float(latest["ema_20"])
@@ -1733,6 +1805,17 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
             if average_daily_turnover_20 is not None
             else None
         ),
+        "volume_ratio_raw": (
+            round(volume_ratio_raw, 3)
+            if volume_ratio_raw is not None
+            else None
+        ),
+        "volume_session_fraction": (
+            round(float(volume_session_fraction), 4)
+            if volume_session_fraction is not None
+            else None
+        ),
+        "volume_ratio_basis": volume_ratio_basis,
         "volume_ratio": round(volume_ratio, 3) if volume_ratio is not None else None,
         "minimum_volume_ratio": current_volume_minimum,
         "volume_floor_passed": volume_floor_passed,
@@ -1808,9 +1891,36 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
         f"EMA50Distance={distance_atr:.2f} ATR ({extension_state})" if distance_atr is not None else "EMA50Distance=Unavailable",
         (
             f"VolumeRatio={volume_ratio:.2f}x "
-            f"(1YPercentile={volume_history_percentile:.1f}; "
+            f"(Raw={volume_ratio_raw:.2f}x; "
+            f"Basis={volume_ratio_basis}; "
+            f"SessionElapsed={float(volume_session_fraction):.1%}; "
+            f"1YPercentile={volume_history_percentile:.1f}; "
             f"Minimum={current_volume_minimum:.2f}x; "
             f"FloorPassed={volume_floor_passed}; Supportive={volume_supportive})"
+            if (
+                volume_ratio is not None
+                and volume_ratio_raw is not None
+                and volume_session_fraction is not None
+                and volume_history_percentile is not None
+            )
+            else (
+                f"VolumeRatio={volume_ratio:.2f}x "
+                f"(Raw={volume_ratio_raw:.2f}x; Basis={volume_ratio_basis}; "
+                f"SessionElapsed={float(volume_session_fraction):.1%}; "
+                f"Minimum={current_volume_minimum:.2f}x; "
+                f"FloorPassed={volume_floor_passed}; Supportive={volume_supportive})"
+            )
+            if (
+                volume_ratio is not None
+                and volume_ratio_raw is not None
+                and volume_session_fraction is not None
+            )
+            else (
+                f"VolumeRatio={volume_ratio:.2f}x "
+                f"(1YPercentile={volume_history_percentile:.1f}; "
+                f"Minimum={current_volume_minimum:.2f}x; "
+                f"FloorPassed={volume_floor_passed}; Supportive={volume_supportive})"
+            )
             if volume_ratio is not None and volume_history_percentile is not None
             else f"VolumeRatio={volume_ratio:.2f}x"
             if volume_ratio is not None
@@ -2080,6 +2190,9 @@ def evaluate_stock_momentum(
         "macd_state": None,
         "setup_type": None,
         "extension_state": None,
+        "volume_ratio_raw": None,
+        "volume_session_fraction": None,
+        "volume_ratio_basis": None,
         "volume_ratio": None,
         "minimum_volume_ratio": config.get(
             "current_volume_min_ratio",
@@ -2419,43 +2532,6 @@ def evaluate_stock_momentum(
                     f"{result.get('message_details', '')} | "
                     f"HistoricalGuidanceUnavailable={guidance_exc}"
                 ).strip(" |")
-
-        if (
-            result.get("status") == STATUS_BUY_SIGNAL
-            and market_context["candle_state"] in {"CURRENT_PARTIAL", "EXTENDED_PREVIEW"}
-        ):
-            original_message = result.get("OUT_MESSAGE") or result.get("output_message")
-            result.update({
-                "status": STATUS_HOLD,
-                "classification": "",
-                "reason": "Provisional buy pending",
-                "output_signal": "Hold_Provisional_Intraday_Buy_Setup",
-                "OUT_MESSAGE": "NO_BUY",
-                "output_message": "NO_BUY",
-                "message": "NO_BUY",
-                "risk_level": "Provisional Candle",
-                "message_details": (
-                    f"{result.get('message_details', '')} | ProvisionalSignal={original_message}"
-                ).strip(" |"),
-            })
-        elif (
-            result.get("status") != STATUS_ERROR
-            and market_context["candle_state"] in {"CURRENT_PARTIAL", "EXTENDED_PREVIEW"}
-        ):
-            status = result.get("status", STATUS_HOLD)
-            original_message = result.get("OUT_MESSAGE") or result.get("output_message") or ""
-            view_name = (
-                "Pre-market preview"
-                if market_context["candle_state"] == "EXTENDED_PREVIEW"
-                else "Intraday view"
-            )
-            provisional_reason = f"{view_name} (provisional)"
-            result.update({
-                "OUT_MESSAGE": result.get("classification") or "NO_BUY",
-                "output_message": result.get("classification") or "NO_BUY",
-                "message": result.get("classification") or "NO_BUY",
-                "reason": provisional_reason,
-            })
 
         result = apply_buy_quality_policies(
             result,
@@ -3004,7 +3080,8 @@ if __name__ == "__main__":
         "rsi_1y_percentile", "rsi_pct_1y_max", "atr", "stoch_k",
         "stoch_d", "stoch_k_1y_min", "stoch_k_1y_max",
         "stoch_k_1y_percentile", "stoch_k_pct_1y_max", "volume",
-        "volume_avg_20", "average_daily_turnover_20", "volume_ratio",
+        "volume_avg_20", "average_daily_turnover_20", "volume_ratio_raw",
+        "volume_session_fraction", "volume_ratio_basis", "volume_ratio",
         "minimum_volume_ratio", "volume_floor_passed",
         "minimum_adv20_turnover", "liquidity_floor_passed",
         "volume_1y_percentile", "volume_pct_1y_max",

@@ -87,7 +87,15 @@ fallback profiles for U.S., NSE, BSE, Japan, Korea, and Taiwan listings.
 - `completed` — prefer the latest completed session candle; and
 - `intraday` — rebuild a current session candle from minute data when available.
 
-Provisional intraday BUYs are downgraded to HOLD until the candle is completed.
+Current partial candles use the same Setup/Trend/Momentum classification rules
+as completed candles. The engine does not automatically convert an intraday BUY
+into HOLD. `candle_state`, `market_phase`, and `data_mode` disclose that the
+classification is based on a partial snapshot.
+
+During a regular session, the raw accumulated volume ratio is normalized by the
+fraction of that listing's exchange session that has elapsed. The engine keeps
+the raw ratio, elapsed-session fraction, and calculation basis in
+`volume_ratio_raw`, `volume_session_fraction`, and `volume_ratio_basis`.
 
 The output fields `session_date`, `candle_state`, `market_phase`, `data_mode`,
 and `data_note` are authoritative for the included market session. A run-level

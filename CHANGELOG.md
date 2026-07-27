@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-28 - V14 Enhanced intraday snapshot correction
+
+- Preserved the normal Setup/Trend/Momentum classification for current partial
+  candles instead of automatically converting every intraday BUY into HOLD.
+- Kept `candle_state`, `market_phase`, and `data_mode` as explicit disclosure
+  fields without allowing them to rewrite the classifier's result.
+- Added exchange-session-paced regular-session volume evaluation while
+  retaining the unadjusted volume ratio for audit.
+- Added `volume_ratio_raw`, `volume_session_fraction`, and
+  `volume_ratio_basis` output fields.
+- Added six focused tests for exchange-session progress and session-paced
+  volume calculations.
+- Live smoke validation processed 20 prior BUY candidates with zero data errors
+  and retained `LCUT` as a genuine intraday BUY on a current partial candle.
+
 ## 2026-07-27 - V14 Enhanced positive-regime scope correction
 
 - Removed pre-bull/pre-bear crossover concepts from V14 Enhanced classification.
