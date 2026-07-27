@@ -8,6 +8,10 @@ The engine is a screener, not an automated trading system. It reports a
 repeatable status for each ticker and expects the end user to perform offline
 verification before acting on a candidate.
 
+The opt-in `Live_Scanner_v14_Enhanced_2.py` variant keeps that classifier
+unchanged and adds supplementary technical, analyst, and earnings context to
+BUY rows only. It does not replace or modify either V14 script.
+
 ## Current release
 
 - Release date: 2026-07-25
@@ -39,8 +43,17 @@ Run selected symbols:
 
 ```powershell
 python .\Live_Scanner_v14_Enhanced.py `
-  -c CAT GE RTX UNP DE `
+  -c CAT,GE,RTX,UNP,DE `
   -o "D:\path\selected-symbols.xlsx"
+```
+
+Run the separate V14 Enhanced 2 supplementary variant:
+
+```powershell
+python .\Live_Scanner_v14_Enhanced_2.py `
+  -c RTX,ITW,TXT,NEU,SIF,GEF-B `
+  --live-candle-mode auto `
+  -o "D:\path\selected-symbols-enhanced-2.xlsx"
 ```
 
 Run historical as-of validation:
@@ -73,7 +86,11 @@ The engine follows five non-negotiable rules:
 - `Live_Scanner_v14.py` — unchanged V14 reference baseline.
 - `Live_Scanner_v14_Enhanced.py` — enhanced threaded and historically
   contextual scanner.
+- `Live_Scanner_v14_Enhanced_2.py` — opt-in V14 Enhanced classifier with
+  BUY-only supplementary technical, analyst, and earnings context.
 - `docs/ENGINE_V14_ENHANCED.md` — complete engine and operator documentation.
+- `docs/ENGINE_V14_ENHANCED_2.md` — Enhanced 2 isolation contract, fields,
+  fallbacks, and validation.
 - `docs/VALIDATION_2026-07-25.md` — XLI regression, full-U.S. run, and
   independent live-feed audit.
 - `docs/VALIDATION_P1_HARDENING_2026-07-27.md` — approved volume, U.S.

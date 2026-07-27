@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-07-28 - V14 Enhanced 2 supplementary BUY context
+
+- Added the separate, opt-in `Live_Scanner_v14_Enhanced_2.py`; the original
+  V14 and V14 Enhanced scripts remain unchanged.
+- Preserved the V14 Enhanced Setup/Trend/Momentum classifier and BUY/HOLD/
+  IGNORE/ERROR policy without adding supplementary gates.
+- Added a BUY-only independent 1D technical composite using 15 moving-average
+  and 11 oscillator votes. It is explicitly labelled `TV_LIKE`, not as
+  proprietary TradingView data.
+- Added BUY-only Yahoo analyst consensus counts, normalized rating, price
+  targets, and target upside.
+- Added BUY-only upcoming/recent earnings context with 7-calendar-day upcoming
+  and 5-calendar-day recent warning windows.
+- Missing or stale supplementary data now reports `UNKNOWN`/`PARTIAL` and can
+  never rewrite the core status or produce an engine `ERROR`.
+- Expanded the terminal and workbook summaries with BUY technical ratings,
+  analyst consensus, and earnings warnings.
+- Disclosed the existing positive-prior-session stochastic allowances:
+  base 80, Early Momentum 90, and Momentum Continuation 100.
+- Added 11 regression/isolation tests; the complete 41-test suite passes.
+- Live intraday parity on `RTX,ITW,TXT,NEU,SIF,GEF-B` retained all six BUYs
+  with the same 5 continuation / 1 early-momentum breakup and zero errors.
+
 ## 2026-07-28 - V14 Enhanced intraday snapshot correction
 
 - Preserved the normal Setup/Trend/Momentum classification for current partial
