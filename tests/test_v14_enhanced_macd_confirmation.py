@@ -2,8 +2,8 @@ import unittest
 
 from Live_Scanner_v14_Enhanced import (
     is_confirmed_positive_macd_crossover,
+    is_confirmed_positive_histogram_expansion,
     is_sustained_positive_histogram_contraction,
-    is_sustained_positive_histogram_expansion,
 )
 
 
@@ -52,22 +52,22 @@ class PositiveMacdCrossoverTests(unittest.TestCase):
 class PositiveHistogramRegimeTests(unittest.TestCase):
     def test_three_positive_expanding_bars_are_confirmed(self):
         self.assertTrue(
-            is_sustained_positive_histogram_expansion([0.10, 0.20, 0.35])
+            is_confirmed_positive_histogram_expansion([0.10, 0.20, 0.35])
         )
 
     def test_negative_histogram_improvement_is_not_positive_expansion(self):
         self.assertFalse(
-            is_sustained_positive_histogram_expansion([-1.72, -1.16, -0.24])
+            is_confirmed_positive_histogram_expansion([-1.72, -1.16, -0.24])
         )
 
-    def test_crossing_from_negative_to_positive_is_not_sustained_expansion(self):
-        self.assertFalse(
-            is_sustained_positive_histogram_expansion([-0.10, 0.05, 0.15])
+    def test_two_positive_bars_after_crossover_confirm_continuation(self):
+        self.assertTrue(
+            is_confirmed_positive_histogram_expansion([-0.10, 0.05, 0.15])
         )
 
     def test_one_bar_improvement_does_not_override_three_bar_pattern(self):
         self.assertFalse(
-            is_sustained_positive_histogram_expansion([0.30, 0.10, 0.20])
+            is_confirmed_positive_histogram_expansion([0.30, 0.10, 0.20])
         )
 
     def test_positive_contraction_is_cooling(self):

@@ -7,12 +7,28 @@
   pullback, confidence scoring, and HOLD labels.
 - Required MACD, signal, and histogram to confirm an established positive MACD
   regime before any pullback BUY path can qualify.
-- Required all bars in the configured histogram window to be positive and
-  strictly expanding for momentum-continuation BUY eligibility.
+- Required the configured histogram window to be strictly expanding, with its
+  latest two bars positive, for momentum-continuation BUY eligibility.
 - Added strict HOLD outcomes for positive price trends whose MACD momentum is
   unconfirmed or whose MACD zero gate is not met.
+- Gated ADX, volume, price-response, and recovery score contributions behind
+  daily trend, weekly trend, and established positive MACD confirmation.
 - Added boundary tests covering negative histogram improvement, negative-to-
   positive transitions, non-sustained one-bar improvement, and positive cooling.
+- Applied the live BUY quality-policy layer during built-in historical replay so
+  backtest classifications match live/as-of engine policy.
+
+### Validation
+
+- Original and enhanced engines compile.
+- 24/24 focused unit tests pass.
+- GLOSTERLTD.NS on 2026-07-24 is strict HOLD/NO_BUY with a capped 4/10 setup
+  score.
+- XLI regression BUY counts are 0, 2, and 3 for 2026-07-22 through 2026-07-24.
+- The 19-symbol audit produces 3 BUY, 11 HOLD, 2 IGNORE, and 3 ERROR rows.
+- All retained BUYs pass the positive EMA/MACD/histogram invariants.
+- A three-year, five-session XLI replay produces 124 trades, a 52.42% win rate,
+  and a 0.43% average return before costs and execution assumptions.
 
 ## Unreleased
 

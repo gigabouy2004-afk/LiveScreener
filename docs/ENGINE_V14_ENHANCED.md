@@ -145,7 +145,8 @@ Daily misalignment produces `Ignore_Daily_Trend`. Weekly misalignment produces
 - MACD above its signal;
 - MACD and signal both above zero;
 - positive histogram;
-- every histogram bar in the configured expansion window positive and expanding;
+- every histogram bar in the configured window expanding, with the latest two
+  bars both positive;
 - a positive current session; and
 - supportive volume.
 
@@ -171,6 +172,11 @@ An improving negative histogram is not a signal in this engine. It cannot
 qualify a BUY, increase confidence, or produce a pre-crossover classification.
 When price trends remain aligned but MACD momentum is not confirmed, the ticker
 is retained as a strict HOLD or ignored under the applicable trend rule.
+
+ADX, volume, price response, and stochastic/EMA recovery contribute to setup
+confidence only after daily trend, weekly trend, and the established positive
+MACD regime have passed. Secondary indicators cannot compensate for a failed
+primary momentum gate.
 
 ### 4.5 Pullback paths
 
@@ -222,6 +228,10 @@ The output discloses:
 
 Daily-history downloads are cached within a process so multi-date validation
 does not refetch the same ticker/period repeatedly.
+
+Built-in historical signal replay applies the same post-classification BUY
+quality policies as live and as-of evaluation, including the U.S. ADV20
+liquidity floor and extreme-extension review label.
 
 ## 6. Volume semantics
 

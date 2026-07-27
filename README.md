@@ -78,6 +78,8 @@ The engine follows five non-negotiable rules:
   independent live-feed audit.
 - `docs/VALIDATION_P1_HARDENING_2026-07-27.md` — approved volume, U.S.
   liquidity, extreme-extension, and data-through hardening evidence.
+- `docs/VALIDATION_POSITIVE_REGIME_2026-07-27.md` — positive-regime scope,
+  GLOSTER correction, invariant checks, and historical replay evidence.
 - `docs/HANDOVER_AND_SESSION_SIGNOFF_2026-07-25.md` — closure state, runbook,
   hashes, open risks, and restart instructions.
 - `CHANGELOG.md` — release history.
@@ -91,9 +93,9 @@ than 5 ATR above EMA50 as `BUY_EXTENDED_REVIEW`.
 
 BUY#4 additionally requires a fresh MACD signal-line crossover above zero with
 a positive histogram. Momentum continuation requires a sustained expansion
-window in which every histogram bar is positive. Negative-histogram improvement
-cannot qualify or strengthen a signal, and the engine does not classify
-pre-bull or pre-bear crossover candidates.
+window with its latest two histogram bars positive. Negative-histogram
+improvement cannot qualify or strengthen a signal, and the engine does not
+classify pre-bull or pre-bear crossover candidates.
 
 International absolute liquidity thresholds remain intentionally disabled until
 currency-aware or exchange-specific policies are defined. Low-liquidity

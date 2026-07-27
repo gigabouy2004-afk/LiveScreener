@@ -671,13 +671,14 @@ def is_confirmed_positive_macd_crossover(
     )
 
 
-def is_sustained_positive_histogram_expansion(
+def is_confirmed_positive_histogram_expansion(
     histogram_values: list[float],
 ) -> bool:
-    """Require every observed histogram bar to be positive and expanding."""
+    """Require an expanding window whose two latest bars are both positive."""
     return bool(
         len(histogram_values) >= 2
-        and all(value > 0 for value in histogram_values)
+        and histogram_values[-2] > 0
+        and histogram_values[-1] > 0
         and all(
             left < right
             for left, right in zip(histogram_values, histogram_values[1:])
@@ -1371,7 +1372,7 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
     hist3 = frame["macd_hist"].dropna().iloc[-3:].astype(float).tolist()
     hist_expanding_3 = (
         len(hist_values) == hist_lookback
-        and is_sustained_positive_histogram_expansion(hist_values)
+        and is_confirmed_positive_histogram_expansion(hist_values)
     )
     hist_contracting_3 = (
         len(hist_values) == hist_lookback
@@ -1826,14 +1827,15 @@ def evaluate_frame(df: pd.DataFrame, ticker_symbol: str, config: dict) -> dict:
     score = 0
     score += 2 if macro_trend_ok else 0
     score += 2 if weekly_trend_ok else 0
-    score += 2 if positive_macd_regime else 0
-    score += 2 if hist_expanding_3 else (1 if positive_macd_regime else 0)
-    score += adx_relative_points
-    score += 1 if continuation_volume_ok else 0
-    score += 1 if current_day_positive and volume_supportive else 0
-    
-    if valid_shallow_pullback:
-        score += 1
+    if macro_trend_ok and weekly_trend_ok and positive_macd_regime:
+        score += 2
+        score += 2 if hist_expanding_3 else 1
+        score += adx_relative_points
+        score += 1 if continuation_volume_ok else 0
+        score += 1 if current_day_positive and volume_supportive else 0
+
+        if valid_shallow_pullback:
+            score += 1
         
     score -= extension_risk
     score = max(0, min(10, score))
@@ -2519,7 +2521,11 @@ def run_backtest(
                 history.attrs["weekly_period_complete"] = (
                     next_daily_date > week_end_date
                 )
-                signal = evaluate_frame(history, ticker, config)
+                signal = apply_buy_quality_policies(
+                    evaluate_frame(history, ticker, config),
+                    _fallback_market_key(ticker),
+                    config,
+                )
                 if signal.get("status") != STATUS_BUY_SIGNAL:
                     idx += 1
                     continue
