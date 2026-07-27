@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased - V15 shadow momentum quality
+
+### Added
+
+- Independent `Live_Scanner_v15.py` entry point based on validated V14 Enhanced
+  commit `20641f5`.
+- Non-binding `LEADER`, `DEVELOPING`, `WEAK`, and `NONE` momentum-quality
+  states.
+- Non-binding entry states that distinguish confirmed candidates from ADX,
+  volume, extension, leadership, and V14-trigger waits.
+- Shadow measurements for EMA50/EMA200 slopes, 20/60/120-session returns,
+  positive/negative directional movement, five-session ADX change, proximity
+  to the prior 52-week high, volume confirmation, and ATR extension.
+- Explicit shadow summaries in terminal, log, and workbook output.
+- Focused unit coverage for quality scoring, entry-state precedence, and the
+  frozen-classification contract.
+
+### Safety
+
+- V15 shadow fields do not modify `status`, `classification`, or
+  `output_signal`.
+- V14 files remain unchanged and continue to be the operational baseline.
+- Benchmark-relative strength is intentionally deferred until exchange-to-
+  benchmark mappings and historical evidence are agreed.
+
 ## 2026-07-27 - V14 Enhanced positive-regime scope correction
 
 - Removed pre-bull/pre-bear crossover concepts from V14 Enhanced classification.
