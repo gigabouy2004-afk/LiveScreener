@@ -91,6 +91,9 @@ The engine follows five non-negotiable rules:
   activation safeguards.
 - `docs/VALIDATION_V15_SHADOW_2026-07-27.md` — V14 parity, unit, and historical
   shadow-state validation.
+- `docs/HANDOVER_V14_TO_V15_AND_APPROVAL_2026-07-27.md` — complete V14 intent,
+  V15 scope, controls, I/O and messaging contracts, deployment manifest, and
+  owner-approval record.
 - `docs/ENGINE_V14_ENHANCED.md` — complete engine and operator documentation.
 - `docs/VALIDATION_2026-07-25.md` — XLI regression, full-U.S. run, and
   independent live-feed audit.

@@ -16,6 +16,11 @@
 - Explicit shadow summaries in terminal, log, and workbook output.
 - Focused unit coverage for quality scoring, entry-state precedence, and the
   frozen-classification contract.
+- Approval-ready V14-to-V15 handover covering engine intent, checks and
+  balances, input/output and messaging contracts, local/GitHub manifests,
+  Phase 2 boundaries, and explicit owner signoff.
+- Focused regression coverage for compact and spaced comma-separated direct
+  code strings, mixed argument segments, normalization, and duplicate removal.
 
 ### Safety
 

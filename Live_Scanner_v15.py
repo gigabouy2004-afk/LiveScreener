@@ -177,6 +177,24 @@ def normalize_ticker_symbol(ticker_symbol: str) -> str:
     return symbol
 
 
+def parse_direct_ticker_codes(code_segments: list[str] | tuple[str, ...]) -> list[str]:
+    """Normalize comma- or space-segmented CLI codes in first-seen order."""
+    raw_codes = []
+    for segment in code_segments or []:
+        raw_codes.extend(str(segment or "").split(","))
+
+    normalized_codes = []
+    seen = set()
+    for raw_code in raw_codes:
+        if not str(raw_code).strip():
+            continue
+        ticker = normalize_ticker_symbol(raw_code)
+        if ticker and ticker not in seen:
+            normalized_codes.append(ticker)
+            seen.add(ticker)
+    return normalized_codes
+
+
 def select_historical_guidance_scope(input_ticker_count: int) -> str:
     """
     Select advisory history depth from the full input-code count.
@@ -3033,7 +3051,16 @@ if __name__ == "__main__":
             "plus non-binding momentum-leadership and entry-quality diagnostics"
         )
     )
-    parser.add_argument("-c", "--codes", type=str, nargs="+", help="Direct stock codes list")
+    parser.add_argument(
+        "-c",
+        "--codes",
+        type=str,
+        nargs="+",
+        help=(
+            "Direct stock codes. Accepts compact commas, comma-plus-space "
+            "strings, or space-separated arguments."
+        ),
+    )
     parser.add_argument("-i", "--input", type=str, default=DEFAULT_INPUT_CSV, help="Path to input watchlist CSV file")
     parser.add_argument("-o", "--output", type=str, default=DEFAULT_OUTPUT_XLSX, help="Path to output log XLSX file")
     parser.add_argument("--preset", type=str, default="balanced", choices=["conservative", "balanced", "aggressive"], help="Strategy preset")
@@ -3107,12 +3134,7 @@ if __name__ == "__main__":
     source_message = ""
     company_names = {}
     if args.codes:
-        raw_list = []
-        for segment in args.codes:
-            raw_list.extend(segment.split(','))
-        watchlist = list(dict.fromkeys(
-            normalize_ticker_symbol(t) for t in raw_list if str(t).strip()
-        ))
+        watchlist = parse_direct_ticker_codes(args.codes)
         cli_codes_str = ",".join(watchlist)
         source_message = f"Direct Command Line Input (-c) ({len(watchlist)} Tickers Loaded)"
     else:
