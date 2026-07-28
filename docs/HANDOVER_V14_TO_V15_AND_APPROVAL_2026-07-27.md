@@ -8,6 +8,11 @@ Implementation status: V15 shadow baseline complete; Phase 2 not started
 
 Activation status: V15 classifications are not active
 
+Post-baseline addendum (2026-07-28): the V15-only Beta/Alpha output extension
+is documented in `HANDOVER_V15_BETA_ALPHA_SIGNOFF_2026-07-28.md`. That addendum
+supersedes this document's V15 file hash and `Details` freeze-pane value while
+preserving the original V14-to-V15 shadow baseline and activation boundary.
+
 ## 1. Handover identity
 
 | Item | Value |
