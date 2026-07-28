@@ -9,6 +9,7 @@ import sys
 import logging
 import concurrent.futures
 import threading
+from urllib.parse import quote
 
 
 # Keep expected per-symbol Yahoo data gaps in the structured ERROR output
@@ -54,6 +55,9 @@ V15_NEAR_52W_HIGH_MIN_PCT = 85.0
 V15_SAFE_ENTRY_MAX_ATR = 3.0
 V15_LEADER_MIN_SCORE = 8
 V15_DEVELOPING_MIN_SCORE = 6
+YAHOO_QUOTE_SUMMARY_URL = (
+    "https://query2.finance.yahoo.com/v10/finance/quoteSummary/"
+)
 
 
 _DAILY_HISTORY_CACHE: dict[tuple[str, str], pd.DataFrame] = {}
@@ -175,6 +179,111 @@ def normalize_ticker_symbol(ticker_symbol: str) -> str:
         if base and preferred_series:
             symbol = f"{base}-P{preferred_series}"
     return symbol
+
+
+def _raw_financial_number(value) -> float | None:
+    if isinstance(value, dict):
+        value = value.get("raw")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if pd.isna(number) else number
+
+
+def _instrument_type(metadata: dict | None) -> str:
+    return str(
+        (metadata or {}).get("instrumentType")
+        or (metadata or {}).get("quoteType")
+        or ""
+    ).strip().upper()
+
+
+def _fetch_quote_summary_module(ticker_data, module_name: str) -> dict:
+    symbol_raw = str(getattr(ticker_data, "ticker", "")).strip()
+    data_client = getattr(ticker_data, "_data")
+    response = data_client.get_raw_json(
+        YAHOO_QUOTE_SUMMARY_URL + quote(symbol_raw, safe=""),
+        params={
+            "modules": module_name,
+            "corsDomain": "finance.yahoo.com",
+            "symbol": symbol_raw,
+            "formatted": "false",
+        },
+    )
+    result = response.get("quoteSummary", {}).get("result") or []
+    if not result:
+        return {}
+    return result[0].get(module_name, {}) or {}
+
+
+def parse_etf_alpha_beta(fund_performance: dict | None) -> dict:
+    """Extract three-year ETF Beta and Alpha from Yahoo fund statistics."""
+    output = {"beta": None, "alpha": None}
+    module = fund_performance or {}
+    risk_overview = module.get("riskOverviewStatistics") or {}
+    rows = risk_overview.get("riskStatistics") or []
+    for row in rows:
+        period = str((row or {}).get("year") or "").strip().lower()
+        if period not in {"3y", "3yr", "3year"}:
+            continue
+        beta = _raw_financial_number((row or {}).get("beta"))
+        alpha = _raw_financial_number((row or {}).get("alpha"))
+        output["beta"] = round(beta, 2) if beta is not None else None
+        output["alpha"] = round(alpha, 2) if alpha is not None else None
+        break
+    return output
+
+
+def fetch_listing_beta_alpha(ticker_data, metadata: dict | None) -> dict:
+    """Fetch Beta for stocks/ETFs and Alpha for ETFs only."""
+    output = {"beta": None, "alpha": None}
+    instrument_type = _instrument_type(metadata)
+
+    if instrument_type in {"ETF", "EXCHANGE TRADED FUND"}:
+        try:
+            fund_performance = _fetch_quote_summary_module(
+                ticker_data,
+                "fundPerformance",
+            )
+            output.update(parse_etf_alpha_beta(fund_performance))
+        except Exception:
+            pass
+
+        if output["beta"] is None or output["alpha"] is None:
+            try:
+                info = ticker_data.get_info() or {}
+            except Exception:
+                info = {}
+            if output["beta"] is None:
+                beta = _raw_financial_number(info.get("beta3Year"))
+                output["beta"] = round(beta, 2) if beta is not None else None
+            if output["alpha"] is None:
+                alpha = _raw_financial_number(info.get("alpha3Year"))
+                output["alpha"] = round(alpha, 2) if alpha is not None else None
+        return output
+
+    if instrument_type not in {"EQUITY", "STOCK"}:
+        return output
+
+    try:
+        statistics = _fetch_quote_summary_module(
+            ticker_data,
+            "defaultKeyStatistics",
+        )
+        beta = _raw_financial_number(statistics.get("beta"))
+    except Exception:
+        beta = None
+
+    if beta is None:
+        try:
+            info = ticker_data.get_info() or {}
+            beta = _raw_financial_number(info.get("beta"))
+        except Exception:
+            beta = None
+
+    output["beta"] = round(beta, 2) if beta is not None else None
+    return output
 
 
 def parse_direct_ticker_codes(code_segments: list[str] | tuple[str, ...]) -> list[str]:
@@ -2318,6 +2427,8 @@ def evaluate_stock_momentum(
         "entry_extension_safe": None,
         "company_name": supplied_company_name or ticker_symbol,
         "currency": None,
+        "beta": None,
+        "alpha": None,
         "status": STATUS_ERROR,
         "output_signal": "Error_InternalError",
         "classification": "",
@@ -2505,6 +2616,10 @@ def evaluate_stock_momentum(
             )
         result_template["exchange"] = exchange
         result_template["currency"] = listing_currency or None
+        if as_of_date is None:
+            result_template.update(
+                fetch_listing_beta_alpha(ticker_data, metadata)
+            )
 
         if df.empty or len(df) < EMA_SLOW_PERIOD:
             return set_error(
@@ -3044,6 +3159,29 @@ def scan_watchlist_concurrently(
     return results, counts
 
 
+def format_v15_details_worksheet(details_worksheet) -> None:
+    """Freeze through Alpha and format the leading V15 output columns."""
+    details_worksheet.freeze_panes = "L2"
+    column_widths = {
+        "A": 18,
+        "B": 16,
+        "C": 18,
+        "D": 24,
+        "E": 14,
+        "F": 34,
+        "G": 44,
+        "H": 14,
+        "I": 10,
+        "J": 12,
+        "K": 12,
+    }
+    for column, width in column_widths.items():
+        details_worksheet.column_dimensions[column].width = width
+    for column in ("H", "J", "K"):
+        for cell in details_worksheet[column][1:]:
+            cell.number_format = "0.00"
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
@@ -3265,7 +3403,7 @@ if __name__ == "__main__":
     columns_order = [
         "ticker", "engine_version", "v15_shadow_mode",
         "v15_classification_active", "OUT_MESSAGE", "reason",
-        "company_name", "price", "currency",
+        "company_name", "price", "currency", "beta", "alpha",
         "output_signal", "output_message", "message_details", "status",
         "setup_type", "confidence", "risk_level", "timestamp", "as_of_date",
         "v15_primary_regime_passed", "momentum_state", "entry_state",
@@ -3440,6 +3578,9 @@ if __name__ == "__main__":
             "reason": "Reason",
             "company_name": "Company Name",
             "price": "Price",
+            "currency": "Currency",
+            "beta": "Beta",
+            "alpha": "Alpha",
         })
 
         with pd.ExcelWriter(args.output, engine="openpyxl") as writer:
@@ -3455,14 +3596,7 @@ if __name__ == "__main__":
 
             if "Details" in workbook.sheetnames:
                 details_worksheet = workbook["Details"]
-                details_worksheet.freeze_panes = "E2"
-                details_worksheet.column_dimensions["A"].width = 18
-                details_worksheet.column_dimensions["B"].width = 14
-                details_worksheet.column_dimensions["C"].width = 26
-                details_worksheet.column_dimensions["D"].width = 44
-                details_worksheet.column_dimensions["E"].width = 14
-                for cell in details_worksheet["E"][1:]:
-                    cell.number_format = "0.00"
+                format_v15_details_worksheet(details_worksheet)
 
         print(f"\nMulti-sheet XLSX written successfully: {os.path.abspath(args.output)}", flush=True)
 

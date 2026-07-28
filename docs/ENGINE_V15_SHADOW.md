@@ -90,6 +90,7 @@ Important V15 fields include:
 
 - `engine_version`, `v15_shadow_mode`, and
   `v15_classification_active`;
+- `beta` for live equity and ETF rows, and `alpha` for live ETF rows;
 - `v15_primary_regime_passed`;
 - `momentum_state`, `momentum_quality_score`,
   `momentum_quality_max_score`, and `momentum_quality_checks`;
@@ -101,6 +102,34 @@ Important V15 fields include:
 
 The terminal and log summary show both the unchanged V14 BUY count and the
 shadow-confirmed BUY count.
+
+## Live Beta and Alpha context
+
+V15 adds provider-supplied Beta and Alpha as descriptive listing context:
+
+- equities report Beta and intentionally leave Alpha blank;
+- ETFs report three-year Beta and three-year Alpha when available;
+- the fields are fetched only for live runs;
+- historical/as-of rows leave both fields blank to avoid present-data
+  look-ahead; and
+- unavailable or malformed provider values remain blank without failing the
+  ticker scan.
+
+These fields do not contribute to the momentum score, entry state, operational
+classification, or shadow recommendation. ETF Alpha is the provider's
+three-year percentage-point value; it is not calculated by the scanner.
+
+In the `Details` worksheet, the leading columns are:
+
+| Column | Field |
+|---|---|
+| H | `Price` |
+| I | `Currency` |
+| J | `Beta` |
+| K | `Alpha` |
+
+The worksheet freezes at `L2`, keeping the header row and columns A through K
+visible while the user scrolls through the remaining V15 diagnostics.
 
 ## Running the shadow engine
 
@@ -137,11 +166,12 @@ No shadow condition should become a production classification rule until:
 5. Any activation is made in a separate commit with boundary and regression
    tests.
 
-## Deferred relative-strength work
+## Deferred custom relative-strength work
 
 Absolute 20/60/120-session performance is measured in this first V15 version.
-Benchmark-relative strength is not yet scored because a global engine needs an
-explicit, auditable mapping from each listing to a suitable local-market and,
-where useful, sector benchmark. Using a single U.S. benchmark for Japan, China,
-Taiwan, Europe, India, and U.S. listings would violate the engine's
-international mandate.
+Provider-supplied Beta and ETF Alpha are displayed as descriptive risk context,
+but custom benchmark-relative ranking is not scored. A global ranking engine
+still needs an explicit, auditable mapping from each listing to a suitable
+local-market and, where useful, sector benchmark. Using a single U.S. benchmark
+for Japan, China, Taiwan, Europe, India, and U.S. listings would violate the
+engine's international mandate.

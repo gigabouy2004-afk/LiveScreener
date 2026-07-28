@@ -21,14 +21,21 @@
   Phase 2 boundaries, and explicit owner signoff.
 - Focused regression coverage for compact and spaced comma-separated direct
   code strings, mixed argument segments, normalization, and duplicate removal.
+- Live Beta for equity and ETF rows, with live three-year Alpha for ETF rows.
+- `Details` worksheet placement immediately after Price and Currency, with the
+  pane frozen at `L2` after Alpha.
+- Focused provider parsing, stock/ETF contract, missing-data, and workbook
+  layout coverage for Beta and Alpha.
 
 ### Safety
 
 - V15 shadow fields do not modify `status`, `classification`, or
   `output_signal`.
 - V14 files remain unchanged and continue to be the operational baseline.
-- Benchmark-relative strength is intentionally deferred until exchange-to-
-  benchmark mappings and historical evidence are agreed.
+- Historical/as-of rows leave Beta and Alpha blank to avoid present-data
+  look-ahead.
+- Custom benchmark-relative ranking remains deferred; provider-supplied Beta
+  and ETF Alpha are descriptive and non-binding.
 
 ## 2026-07-27 - V14 Enhanced positive-regime scope correction
 

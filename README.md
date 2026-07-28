@@ -5,6 +5,8 @@ baseline is `Live_Scanner_v14_Enhanced.py`; `Live_Scanner_v14.py` is retained as
 the unchanged V14 reference. `Live_Scanner_v15.py` is an experimental shadow
 engine: it preserves V14 classifications while recording stricter momentum-
 quality and entry-quality assessments for validation.
+For live scans, V15 also reports Beta for equities and ETFs and three-year
+Alpha for ETFs; stock Alpha is intentionally blank.
 
 The engine is a screener, not an automated trading system. It reports a
 repeatable status for each ticker and expects the end user to perform offline
@@ -65,6 +67,10 @@ python .\Live_Scanner_v15.py `
   -o "D:\path\v15-shadow-output.xlsx"
 ```
 
+In the V15 `Details` worksheet, Beta and Alpha are placed immediately after
+Price and Currency. The pane is frozen at `L2`, so columns A through K and the
+header row remain visible while scrolling.
+
 ## Design contract
 
 The engine follows five non-negotiable rules:
@@ -91,6 +97,10 @@ The engine follows five non-negotiable rules:
   activation safeguards.
 - `docs/VALIDATION_V15_SHADOW_2026-07-27.md` — V14 parity, unit, and historical
   shadow-state validation.
+- `docs/VALIDATION_V15_BETA_ALPHA_2026-07-28.md` — V15 Beta/Alpha contract,
+  live-provider smoke evidence, workbook checks, and regression results.
+- `docs/HANDOVER_V15_BETA_ALPHA_SIGNOFF_2026-07-28.md` — owner sign-off package,
+  synchronization manifest, risks, runbook, and rollback boundary.
 - `docs/HANDOVER_V14_TO_V15_AND_APPROVAL_2026-07-27.md` — complete V14 intent,
   V15 scope, controls, I/O and messaging contracts, deployment manifest, and
   owner-approval record.
