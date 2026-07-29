@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-07-30 - No-translation-loss continuity enforcement
+
+### Added
+
+- Made the master blueprint a mandatory living authority that matures in the
+  same commit as implementation progress.
+- Added a session-start/session-end reconciliation protocol and an
+  authoritative living checkpoint containing current gates, frozen decisions,
+  last completed work, next exact action and explicit non-started scope.
+- Required the master blueprint, active action plan and changelog to be updated
+  together on every implementation-progress commit.
+- Added a regression test that detects documentation revisions which are not
+  committed together, implementation commits newer than the master, and dirty
+  implementation handoffs without corresponding continuity-document updates.
+- Added repository and workspace Codex guidance so a future session starts
+  from the master checkpoint and never reconstructs current intent from chat,
+  another worktree or `Retired` material.
+
+### Why
+
+Development continuity must survive session boundaries without relying on
+conversation memory. The committed repository now carries its own complete
+background, current state, evidence boundary, action plan and exact restart
+instruction, with an automated check against code/documentation drift.
+
+### Validation
+
+- 82 unit and regression tests passed, including four continuity checks.
+- Syntax compilation and diff checks passed.
+- The visible root blueprint remained a hard link to the authoritative V17
+  blueprint with an identical SHA-256 hash.
+
 ## 2026-07-30 - Free runtime-only execution plan
 
 ### Changed

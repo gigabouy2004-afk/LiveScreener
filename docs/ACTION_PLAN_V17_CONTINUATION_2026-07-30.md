@@ -12,6 +12,35 @@ Document role: active implementation plan supporting the master blueprint
 
 Status: approved planning baseline; implementation not yet started
 
+## Continuity and restart state
+
+The master blueprint is the standalone authority. This plan may sequence work
+but may not introduce an assumption, decision, gate or status that is absent
+from the master.
+
+Every implementation-progress commit must update together:
+
+- `docs/MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`, including its living checkpoint;
+- this action plan;
+- `CHANGELOG.md`; and
+- any other supporting document affected by the change.
+
+The continuity regression test requires the master, this plan and changelog to
+share the same latest commit and prevents implementation progress from being
+committed ahead of the master.
+
+Current synchronized restart state:
+
+| Item | State |
+|---|---|
+| Product work | Runtime architecture approved; implementation not started |
+| Current runtime gate | R1 - pending |
+| Current scientific gate | G1 blocked; G2-G8 blocked or not started |
+| Next action | Add/retain tests for legacy local-input and persistent-cache behavior, then implement R1 |
+| Prohibited scope | No signal, threshold, classifier, BUY or activation change |
+| Handoff authority | Section 25 of the master blueprint |
+| Last validation | 82 unit tests, syntax compilation, diff checks and root master-link verification passed |
+
 ## Governing constraints
 
 The implementation must satisfy all of the following:

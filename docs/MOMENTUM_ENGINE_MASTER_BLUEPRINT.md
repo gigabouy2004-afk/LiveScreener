@@ -64,6 +64,71 @@ Validation records remain evidence records. Do not rewrite their measured
 results to match a later hypothesis; create a new validation record and update
 the current gate status instead.
 
+### 1.2 Living authority and no-translation-loss protocol
+
+This blueprint is a living authority, not a one-time handover. It must mature
+in the same commit as the engine. Conversation history, memory, a prior Codex
+session and an unstaged working note are never substitutes for updating this
+file.
+
+An implementation change is not complete until the commit containing it also
+records, as applicable:
+
+- what behavior, interface, calculation or data contract changed;
+- why it changed and which owner constraint or gate it serves;
+- what was deliberately not changed;
+- the current R1-R8 and G1-G8 gate states;
+- validation performed and its exact result;
+- remaining limitations, failures and blockers;
+- decisions or assumptions frozen by the change; and
+- the next exact executable action.
+
+Every implementation-progress commit must update, at minimum:
+
+1. this master blueprint, including Section 25;
+2. `docs/ACTION_PLAN_V17_CONTINUATION_2026-07-30.md`;
+3. `CHANGELOG.md`; and
+4. every other supporting document whose subject changed.
+
+`README.md` must also change when setup, commands, user-visible behavior or
+release status changes. A new validation record is required when new measured
+evidence changes or closes a gate.
+
+The active master, action plan and changelog must be committed together. The
+continuity regression test verifies that their latest committed revisions are
+the same commit and that no implementation commit is newer than the master.
+While implementation files are dirty, the test also requires all three
+continuity documents to be dirty, preventing a code-only handoff.
+
+At the start of every session:
+
+1. use `D:\Tools\07_LiveScanner` as the workspace root;
+2. read this file completely before acting;
+3. verify that the active worktree is `.worktrees\v17` on branch `V17`;
+4. confirm the root and worktree blueprint SHA-256 hashes are identical;
+5. inspect `git status`, the latest commits and Section 25;
+6. ignore every `Retired` directory and other worktree unless the owner
+   explicitly requests an audit; and
+7. resume the exact next action in Section 25 without reconstructing intent
+   from chat.
+
+Before ending or committing an implementation session:
+
+1. reconcile actual code behavior with this blueprint;
+2. update the gate table and living checkpoint;
+3. record validation evidence and unresolved failures;
+4. update the active action plan and changelog in the same commit;
+5. run the full regression and continuity checks;
+6. verify the visible root hard link again; and
+7. leave either a clean worktree or an explicit dirty-file ledger in
+   Section 25.
+
+If code, supporting documentation and this blueprint disagree, stop feature
+work and reconcile them first. Never resolve a conflict by guessing from
+retired files or conversation history. Preserve the reason for any superseded
+decision in the changelog, move obsolete material to `Retired`, and retain the
+current decision here.
+
 ## 2. Mission and current decision
 
 The mission is to build an evidence-based, stock-level Momentum Engine that:
@@ -1356,3 +1421,76 @@ The next development session begins with runtime gates R1-R3:
 Only after R3 passes may work proceed to candidate-only intraday enrichment,
 full-universe benchmarks and runtime reference backtesting. No classifier,
 threshold, BUY rule or activation flag may change during this sequence.
+
+## 25. Living development checkpoint
+
+This section is the authoritative restart point. It must describe the state
+created by the commit containing it, not an intended future state.
+
+| Checkpoint field | Current synchronized state |
+|---|---|
+| Active branch/worktree | `V17` at `D:\Tools\07_LiveScanner\.worktrees\v17` |
+| Foundation baseline | Commit `3586f24cb4e8390e66476e30f895e1a3ce3ff430`; tag `baseline-v17-momentum-foundation-2026-07-30` |
+| Synchronization statement | Master, action plan and changelog are synchronized through the commit containing this revision |
+| Product status | Free runtime-only execution architecture approved; implementation not started |
+| Scientific status | Research infrastructure only; inherited daily stability failed; G1-G8 blocked or not started |
+| Current runtime gate | R1 - pending |
+| Last completed work | Runtime source strategy, small/large execution lanes, R1-R8 gates, performance contract, evidence boundary and continuity enforcement were documented |
+| Active code change | None; the current commit changes documentation governance and its regression protection only |
+| Last verified regression | 82 unit tests passed; syntax compilation, diff checks and root-document hash/link verification passed |
+| Dirty-file ledger | None expected after this commit; verify with `git status` at session start |
+| Next exact action | Add/retain failing tests for legacy local-input and persistent-cache behavior, then implement R1 without changing signal calculations |
+
+### 25.1 Decisions frozen at this checkpoint
+
+- Free-access sources only; no paid subscription or required API key.
+- No required local universe master, historical database, historical-data
+  folder, persistent OHLCV cache or resume checkpoint.
+- Provider technical caches are isolated to cleaned per-run temporary storage.
+- Normal inputs are explicit codes or `nasdaq|nyse|all`.
+- A large run calculates the unchanged daily foundation for every accepted
+  symbol before candidate-only current-session enrichment.
+- A runtime backtest is labeled `CURRENT_SURVIVOR_REFERENCE_ONLY`.
+- R1-R8 product delivery does not pass G1-G8 scientific promotion gates.
+- All genuine-momentum and production-activation flags remain false.
+- No threshold, classifier, BUY rule or inherited calculation may change
+  during R1-R3.
+
+### 25.2 Exact R1 work package
+
+1. Add or retain tests proving the current legacy behavior is unacceptable:
+   default local input, persistent daily cache and persistent provider cache.
+2. Implement mutually exclusive `--codes` and
+   `--universe nasdaq|nyse|all`.
+3. Remove the default local CSV and fallback watchlist from the normal path.
+4. Disable/remove persistent historical cache configuration and storage.
+5. direct provider technical caching to a per-run temporary directory and
+   clean it on every exit path.
+6. use a runtime-relative default output without reading prior outputs.
+7. embed source, scope, coverage and runtime settings in the output manifest.
+8. prove that existing completed-session calculations and visible
+   classifications did not change.
+
+### 25.3 R1 exit evidence required
+
+- CLI tests for explicit codes, each universe value, mutual exclusion and
+  missing input;
+- filesystem tests proving no historical input or persistent market-data write;
+- provider temporary-cache cleanup tests;
+- the complete deterministic regression suite;
+- syntax compilation and `git diff --check`;
+- updated Section 25, action plan, changelog and any affected user guidance;
+  and
+- a clean committed worktree with matching root/worktree blueprint hashes.
+
+### 25.4 Explicitly not started
+
+- R1 code changes;
+- runtime universe downloading;
+- bulk daily refactoring;
+- candidate-only intraday routing;
+- full-universe benchmarks;
+- runtime-only backtest refactoring;
+- classifier/model research;
+- promotion-quality daily or intraday acquisition; and
+- any production activation work.

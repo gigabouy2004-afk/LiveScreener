@@ -64,6 +64,13 @@ The primary, self-contained development authority is
 It contains the complete foundation, calculation contract, research design,
 evidence, development gates, interim goals and final activation criteria.
 
+Its living checkpoint is the only restart authority between Codex sessions.
+Every implementation-progress commit must update the master blueprint, active
+action plan and changelog together. The continuity regression test rejects a
+committed implementation state newer than the master and rejects a dirty
+implementation handoff unless all three continuity documents are being
+updated.
+
 ## Design contract
 
 The engine follows five non-negotiable rules:
