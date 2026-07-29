@@ -4,8 +4,8 @@ Document role: supporting point-in-time research and outcome protocol
 
 Primary authority: `MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`
 
-Status: implemented research infrastructure; classifier research is blocked
-pending an accepted point-in-time daily archive
+Status: implemented research infrastructure; free runtime-product work is
+planned, while classifier promotion remains blocked by the data contract
 
 ## Purpose
 
@@ -17,6 +17,20 @@ The completed-candle machinery remains the data foundation. The research layer
 records what was knowable at the time, measures what happened afterwards and
 uses chronological evidence to determine which stock-level characteristics are
 actually useful.
+
+## Runtime-only operational profile
+
+The approved application path discovers the requested Nasdaq/NYSE universe and
+downloads market history from free-access sources during each run. It may not
+require or reuse a local security master, historical database, data folder,
+persistent market-data cache or checkpoint.
+
+This runtime profile supports live review and a
+`CURRENT_SURVIVOR_REFERENCE_ONLY` daily replay. It does not satisfy the archive
+requirements below. Historical prices downloaded for today's listed universe
+do not supply point-in-time membership, inactive/delisted coverage or immutable
+provenance, and recent free intraday history cannot validate several years of
+1-hour/4-hour evidence.
 
 ## Time terminology
 
@@ -193,3 +207,7 @@ column names and are accompanied by this protocol.
 The data panel and chronological validation framework are infrastructure only.
 No genuine-momentum classifier has been trained, calibrated, validated or
 approved.
+
+Runtime delivery gates R1-R8 in the master blueprint are planned but not
+implemented. They improve acquisition, scale and end-user simplicity; they do
+not alter the feature/outcome contract or pass promotion gates G1-G8.

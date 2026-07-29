@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-07-30 - Free runtime-only execution plan
+
+### Changed
+
+- Approved free-access runtime acquisition as the normal product-delivery
+  profile.
+- Prohibited required local universe masters, historical databases,
+  historical-data folders, persistent market-data caches and resume
+  checkpoints from the normal runtime path.
+- Required provider cookie/timezone caches to use cleaned per-run temporary
+  storage rather than persistent application data.
+- Defined explicit-code and planned `--universe nasdaq|nyse|all` inputs.
+- Defined a small-list lane and a bulk daily-first all-market lane with
+  candidate-only current-session enrichment.
+- Added runtime delivery gates R1-R8, staged scale benchmarks, bounded provider
+  failure behavior, memory/progress requirements and explicit partial-coverage
+  output.
+- Permanently separated `CURRENT_SURVIVOR_REFERENCE_ONLY` runtime backtests
+  from promotion-quality evidence.
+- Replaced the archive-dependent continuation plan and moved its superseded
+  version to
+  `Retired/Documentation/Superseded V17 Plans/ACTION_PLAN_V17_ARCHIVE_DEPENDENT_2026-07-30.md`.
+
+### Why
+
+The application must run without data installation or specialist tuning and
+must accept anything from a few stock codes to the current Nasdaq/NYSE
+listed-equity universe. Bulk daily acquisition and candidate-only enrichment
+minimize application overhead, while explicit evidence labels prevent free
+current-universe data from being mistaken for survivorship-free,
+promotion-quality validation.
+
 ## 2026-07-30 - Active documentation synchronization
 
 ### Changed

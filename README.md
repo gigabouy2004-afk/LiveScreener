@@ -17,6 +17,7 @@ verification before acting on a candidate.
 - Baseline commit: `3586f24cb4e8390e66476e30f895e1a3ce3ff430`
 - Current research engine: `Live_Scanner_v17.py`
 - V17 status: non-binding; not approved as a momentum classifier
+- Runtime-only plan: approved; implementation gates R1-R8 not yet started
 - Python: 3.10 or later
 - Market data: Yahoo Finance through `yfinance`
 - Default concurrency: 3 independent ticker workers
@@ -42,6 +43,21 @@ python .\Live_Scanner_v17.py `
 V17 accepts only provider-verified NYSE/Nasdaq equity listings. Premarket,
 postmarket, partial daily candles, ETFs, NYSE American/Arca and international
 listings are excluded.
+
+The target zero-setup interface below is approved but not implemented yet:
+
+```powershell
+python .\Live_Scanner_v17.py --universe nasdaq
+python .\Live_Scanner_v17.py --universe nyse
+python .\Live_Scanner_v17.py --universe all
+```
+
+It will discover listings and download history from free-access sources at
+runtime. Normal execution will not require a local universe master, historical
+database, historical-data folder, persistent market-data cache or resume
+checkpoint. A small code list receives full enrichment; an all-market run
+bulk-calculates the daily foundation first and performs slower current-session
+enrichment only for daily-qualified candidates.
 
 The primary, self-contained development authority is
 `docs/MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`. Start there in every new session.
@@ -98,8 +114,14 @@ The engine follows five non-negotiable rules:
 ## Release status
 
 V17 is research infrastructure only. No genuine-momentum classifier or
-production BUY change is approved. The next blocking dependency is a
-promotion-quality point-in-time NYSE/Nasdaq daily archive.
+production BUY change is approved. The next work is runtime gates R1-R3:
+remove required local historical inputs and persistence, implement runtime
+Nasdaq/NYSE discovery, and prove bulk-daily calculation parity.
+
+Free runtime downloads can support operational review and a
+current-survivor-only reference backtest. They cannot supply point-in-time
+inactive/delisted coverage or several years of 30-minute history, so scientific
+promotion gates G1-G8 remain blocked or not started.
 
 Historical documentation and generated test evidence are stored under
 `Retired`. Retired material is non-authoritative and must not be used for

@@ -188,6 +188,26 @@ No V17 or V17 variant may be described as genuinely identifying momentum until
 the multi-year, timestamp-correct, out-of-sample evidence is positive and the
 owner approves a separate activation change.
 
+## Runtime delivery profile
+
+The planned runtime path uses free-access sources only and keeps downloaded
+market history in memory for the current run. It must not require a local
+universe file, historical database, historical-data folder, persistent
+market-data cache or resume checkpoint.
+
+For a small explicit code list, every verified symbol receives the daily
+foundation and current-session enrichment. For a large list or the complete
+runtime Nasdaq/NYSE universe, daily history is downloaded in bulk and the
+unchanged daily calculation is applied to every accepted symbol first. Only
+daily-qualified candidates receive the slower metadata and recent 30-minute
+enrichment.
+
+Execution-lane choice, batch size, concurrency and input population may change
+speed only. They may not change a shared stock's daily foundation,
+classification or completed 1-hour/4-hour construction. Provider failures and
+omitted enrichment must be visible and may not be interpreted as negative
+market evidence.
+
 ## Running the live shadow
 
 ```powershell
@@ -200,3 +220,6 @@ python .\Live_Scanner_v17.py `
 The visible workbook records the previous-session daily foundation and
 plain-language current-session 4H/1H review. Technical diagnostics are retained
 in a hidden sheet for reproducibility.
+
+The `--universe nasdaq|nyse|all` interface is approved in the execution plan
+but is not implemented at this planning baseline.

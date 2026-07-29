@@ -32,6 +32,13 @@ It defines:
 
 Material under any `Retired` directory is not part of this specification.
 
+The approved product-delivery profile is also constrained to free-access
+runtime sources. The normal application may not require a local security
+master, historical database, historical-data folder, persistent market-data
+cache or resume checkpoint. It must accept either a few explicit stock codes
+or the current Nasdaq/NYSE listed-equity universe and keep the end-user path
+simple.
+
 ### 1.1 Documentation authority and maintenance
 
 This blueprint is the primary development authority. The other active
@@ -71,6 +78,12 @@ The mission is to build an evidence-based, stock-level Momentum Engine that:
    multiple market regimes; and
 5. remains understandable and auditable to an end user.
 
+The immediate engineering mission is narrower: deliver the existing
+research-only V17 review through a zero-setup runtime path that obtains its
+universe and market history from free-access sources during each run. This
+runtime-delivery goal does not relax the evidence required for genuine
+momentum confirmation.
+
 The present V17 baseline is research infrastructure. It is not:
 
 - a genuine-momentum classifier;
@@ -91,6 +104,16 @@ The engine is restricted to provider-verified U.S. equities listed on:
 - Nasdaq.
 
 The provider must verify both the instrument type and listing venue.
+
+For runtime universe discovery, the implementation uses the official Nasdaq
+Trader symbol-directory files, filters test issues and ETFs, and retains
+Nasdaq-listed securities plus exchange code `N` for NYSE. The SEC ticker and
+exchange file may corroborate identity once per run. Paginated
+`yfinance.EquityQuery` exchange screens provide batch equity-type
+corroboration; only unresolved symbols may require bounded per-symbol metadata.
+An unverified instrument must be reported rather than silently included.
+Provider symbol normalization must retain the original exchange symbol for
+audit.
 
 The following are outside the current engine scope:
 
@@ -449,6 +472,13 @@ holdout.
 
 ## 11. Required promotion-quality data
 
+This section defines the evidence required to promote a classifier, not an
+input dependency for the constrained runtime scanner. Under the approved
+free-access, runtime-only profile, no compliant archive is available or stored
+locally. The operational scanner may proceed, but gates G1-G8 remain blocked
+or not started and its runtime backtests remain current-survivor reference
+diagnostics.
+
 ### 11.1 Daily archive
 
 The daily archive must contain:
@@ -478,6 +508,11 @@ The ingestion schema requires, at minimum:
 A current-survivor-only archive is acceptable for a mechanical smoke test, but
 not for efficacy, model selection or promotion.
 
+A free runtime download of the current listed universe is
+current-survivor-only even when it contains several years of price history.
+Historical prices do not reconstruct the point-in-time universe or restore
+inactive and delisted securities.
+
 ### 11.2 Intraday archive
 
 Incremental 1-hour/4-hour validation requires several years of:
@@ -493,6 +528,10 @@ Incremental 1-hour/4-hour validation requires several years of:
 
 Recent Yahoo intraday data is suitable for live diagnostics and short
 mechanical smoke replays only. It is not acceptable multi-year evidence.
+
+The `yfinance` download interface documents that intraday history cannot extend
+beyond the most recent 60 days. That limit makes a several-year 1-hour/4-hour
+promotion replay impossible within the current source constraints.
 
 ### 11.3 Archive acceptance audit
 
@@ -515,6 +554,16 @@ security and row counts, file hashes, adjustment method, timezone, calendar
 convention and known limitations.
 
 ## 12. Backtesting and validation architecture
+
+Two evidence labels are mandatory:
+
+- `CURRENT_SURVIVOR_REFERENCE_ONLY` for a backtest that discovers today's
+  universe and downloads its history at runtime; and
+- `PROMOTION_QUALITY` only for a frozen point-in-time archive that passes
+  Section 11.
+
+The runtime-only implementation may deliver the first label. It may never
+infer or display the second label from free current-universe downloads.
 
 ### 12.1 General principles
 
@@ -672,6 +721,8 @@ or economic meaning.
 | Gate | Current status | Meaning |
 |---|---|---|
 | Completed-candle and calendar mechanics | Passed | Implementation foundation is reproducible |
+| Free runtime-only product | Planned | Architecture and implementation gates R1-R8 are frozen; code changes have not started |
+| All-market performance | Not measured | Must pass staged 2/25/100/1,000/full-universe benchmarks |
 | Point-in-time daily archive acceptance | Blocked | No compliant archive is present |
 | Inherited daily-rule stability | Failed | Benchmark is negative gross and after costs over five years |
 | Frozen chronological research | Not started | Requires an accepted archive and predeclared contract |
@@ -681,7 +732,29 @@ or economic meaning.
 | Live research-only observation | Not started | Requires a frozen daily and intraday candidate |
 | Production activation | Not approved | Confirmation flags remain false |
 
-## 15. Development program and promotion gates
+## 15. Development programs and gates
+
+The program has two tracks. Track A delivers the constrained runtime product.
+Track B governs scientific promotion. Passing Track A does not pass, replace or
+weaken any Track B gate.
+
+### Track A - free runtime product
+
+| Gate | Deliverable | Exit condition |
+|---|---|---|
+| R1 | Runtime CLI and input contract | `--codes` or `--universe`; no required local input, cache, checkpoint or database |
+| R2 | Runtime universe adapter | Nasdaq Trader parsing, NYSE/Nasdaq filters, paginated equity corroboration, rejection ledger and optional SEC corroboration pass |
+| R3 | Bulk daily engine | Batched results match direct V17 calculations and are independent of order/batch size |
+| R4 | Small/large lane orchestration | All accepted symbols receive daily evaluation; qualifying candidates receive bounded intraday enrichment |
+| R5 | Provider resilience | Timeouts, bounded retries, batch isolation and explicit partial coverage pass fault tests |
+| R6 | End-user progress and output | One-command run, continuous phase progress and understandable complete/partial workbook pass review |
+| R7 | Runtime reference backtest | No local historical inputs; output is permanently labeled `CURRENT_SURVIVOR_REFERENCE_ONLY` |
+| R8 | Benchmark and release | Unit/regression tests plus 2/25/100/1,000/full-universe benchmarks pass frozen release limits |
+
+R1-R8 must be implemented in order. R3 parity is mandatory before R4 changes
+which symbols receive the more expensive current-session enrichment.
+
+### Track B - promotion-quality research
 
 ### Phase P0 — Data and research-contract foundation
 
@@ -841,8 +914,11 @@ Already achieved:
 
 ### 16.2 Immediate interim goal
 
-Acquire, version and audit the promotion-quality point-in-time daily archive.
-Until this is complete, model or threshold changes are premature.
+Implement runtime gates R1-R3: remove required local historical inputs and the
+persistent market-data cache, add the runtime universe adapter, and prove that
+the bulk daily engine exactly matches current V17 calculations.
+
+No classifier, threshold or BUY-rule change is part of this work.
 
 ### 16.3 Daily research interim goal
 
@@ -862,8 +938,10 @@ measurable value to the exact same frozen daily candidates.
 
 ### 16.6 Operational interim goal
 
-Complete a research-only live observation period with stable data quality,
-calibration and operations.
+Pass R4-R8: deliver automatic small-list/all-market routing, bounded candidate
+enrichment, explicit provider-failure handling, simple output and staged
+performance benchmarks. Then complete a research-only live observation period
+with stable data quality and operations.
 
 ### 16.7 Final development goal
 
@@ -895,7 +973,8 @@ Until then, no output may be called `TRUE_MOMENTUM_CONFIRMED`.
 
 The visible workbook contains:
 
-- `Summary`: execution totals and data-quality information;
+- `Summary`: input scope, source timestamps, coverage, duration, execution
+  totals and data-quality information;
 - `Review`: one plain-language row per security; and
 - hidden `Technical Data`: reproducibility fields.
 
@@ -911,14 +990,26 @@ The visible review and text log should:
 Technical output must retain the complete diagnostic vector needed to
 reproduce every displayed conclusion.
 
+Every requested or discovered symbol must be accounted for as evaluated,
+rejected, duplicated or failed. The summary must distinguish complete from
+partial coverage and must report discovered, accepted, daily-evaluated,
+daily-failed, candidate, intraday-enriched and intraday-unavailable counts.
+
+For a large-run non-candidate, current-session enrichment may be omitted only
+because the completed-daily foundation did not qualify. The visible reason must
+say so explicitly. Missing intraday evidence is never treated as bearish
+evidence.
+
 ## 18. Implementation component map
 
 | Component | Responsibility |
 |---|---|
-| `Live_Scanner_v17.py` | Live previous-session daily foundation and non-binding current-session review |
+| `Live_Scanner_v17.py` | Runtime CLI, live previous-session daily foundation, lane orchestration and non-binding current-session review |
+| Planned runtime universe adapter | Nasdaq Trader/SEC acquisition, filtering, symbol normalization and rejection reasons |
+| Planned bulk market-data adapter | Free-access bulk daily/recent intraday requests, normalization, retry isolation and in-memory lifetime |
 | `v17_mtf.py` | U.S. calendar, completed-source filtering, 1-hour/4-hour construction and diagnostics |
 | `v17_mtf_replay.py` | Timestamp-correct daily/30-minute cutoff replay |
-| `v17_us_daily_backtest.py` | Multi-year inherited completed-daily reference replay |
+| `v17_us_daily_backtest.py` | Current-survivor-only inherited completed-daily reference replay; must be refactored away from a local universe master |
 | `v17_analyze_daily_results.py` | Descriptive daily cohort analysis |
 | `momentum_research.py` | Age-aware daily features, future outcomes and chronological splitting |
 | `build_momentum_research_panel.py` | Strict long-form archive ingestion and panel writing |
@@ -942,6 +1033,19 @@ python .\Live_Scanner_v17.py `
   --live-candle-mode completed `
   -o .\output\Momentum_Review.xlsx
 ```
+
+The target runtime interface below is approved but not implemented at the
+planning baseline:
+
+```powershell
+python .\Live_Scanner_v17.py --universe nasdaq
+python .\Live_Scanner_v17.py --universe nyse
+python .\Live_Scanner_v17.py --universe all
+```
+
+These modes discover the universe and download history during the run. They
+must not read a local universe master, historical database, data folder,
+persistent market-data cache or prior checkpoint.
 
 Build the daily research panel:
 
@@ -1007,6 +1111,13 @@ Do not:
 - promote an exploratory diagnostic slice as a gate;
 - let watchlist membership change a security's result;
 - let concurrency change calculations or classifications; or
+- require a local security master or historical-data folder for a normal
+  runtime scan;
+- persist downloaded market history for reuse by a later run;
+- silently omit a universe, download or enrichment failure;
+- describe a current-survivor runtime backtest as promotion-quality;
+- apply an arbitrary top-N cap to daily-qualified candidates;
+- leave a network retry or provider wait unbounded; or
 - call a present shadow state genuine momentum.
 
 Stop promotion work when a locked gate fails. Record the failure and return to
@@ -1029,11 +1140,26 @@ The current Yahoo intraday interface:
 - has no native historical 4-hour series; and
 - is unsuitable as the several-year activation archive.
 
+The approved free runtime source stack:
+
+- offers no contracted latency, availability or rate quota;
+- can change or throttle independently of this application;
+- cannot guarantee a fixed all-market completion time;
+- cannot reconstruct historical membership or delisted coverage from today's
+  listings;
+- cannot make runtime results immutable after the remote source changes; and
+- may finish with explicit partial coverage during provider degradation.
+
+The product must minimize its own overhead and avoid per-ticker work across the
+whole market, but it cannot honestly promise that an external free endpoint
+will always be fast.
+
 ## 22. Decisions that remain open
 
 The following must be decided at the specified gate, not assumed now:
 
-- daily and intraday data vendor/source;
+- promotion-quality daily and intraday data vendor/source, if the evidence
+  program is resumed outside the current free runtime constraints;
 - exact accepted archive version;
 - training, calibration and holdout dates;
 - market-regime definition;
@@ -1046,6 +1172,9 @@ The following must be decided at the specified gate, not assumed now:
 - probability-calibration method;
 - promotion thresholds;
 - final replay cutoffs;
+- frozen small-list threshold after measurement;
+- bulk batch sizes and provider time budgets after staged benchmarking;
+- benchmarked full-universe runtime service target;
 - live-shadow duration;
 - monitoring tolerances; and
 - rollback procedure.
@@ -1053,17 +1182,177 @@ The following must be decided at the specified gate, not assumed now:
 Every such decision must be versioned before the evidence it governs is
 examined.
 
-## 23. Immediate continuation instruction
+## 23. Constraint-driven runtime architecture
 
-The next session must begin with the promotion-quality daily archive:
+### 23.1 Source stack
 
-1. identify or place the candidate archive;
-2. record immutable version information and hashes;
-3. map fields to the required schema;
-4. run the acceptance audit;
-5. produce the quality, coverage and exclusion reports;
-6. freeze the research configuration and chronological boundaries; and
-7. build the daily panel only after gates G1–G3 pass.
+Universe discovery occurs once at run start:
 
-No classifier, threshold or BUY-rule work should begin before this sequence is
+1. download `nasdaqlisted.txt` and/or `otherlisted.txt` from Nasdaq Trader;
+2. filter test issues, ETFs and unsupported venues;
+3. retain Nasdaq listings and exchange code `N` for NYSE;
+4. optionally download the SEC ticker/exchange JSON once to corroborate
+   identity;
+5. query the paginated `yfinance` equity screens for exchange codes `NMS`,
+   `NGM`, `NCM` and `NYQ` to corroborate instrument type in batches;
+6. use bounded per-symbol history metadata only for unresolved symbols; and
+7. normalize symbols for the market-data provider while retaining original
+   symbols and rejection reasons.
+
+Market history is obtained through a free-access adapter. The first adapter
+uses `yfinance` multi-ticker download with threading, adjusted OHLCV and
+extended hours disabled. All downloaded frames are ephemeral in-memory
+objects. Final outputs may be written, but a later run may not reuse them as a
+historical input.
+
+Any provider-library cookie/timezone cache must be redirected to an isolated
+per-run operating-system temporary directory and removed on exit. It may never
+store or become a reusable OHLCV-history source.
+
+Current source references:
+
+- [Nasdaq Trader symbol-directory definitions](https://www.nasdaqtrader.com/trader.aspx?id=symboldirdefs)
+- [SEC EDGAR data-access guidance](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data)
+- [SEC ticker and exchange JSON](https://www.sec.gov/files/company_tickers_exchange.json)
+- [yfinance download API](https://ranaroussi.github.io/yfinance/reference/api/yfinance.download.html)
+- [yfinance equity screener reference](https://ranaroussi.github.io/yfinance/reference/yfinance.screener.html)
+- [yfinance usage notice](https://ranaroussi.github.io/yfinance/index.html)
+
+### 23.2 End-user input
+
+The normal interface supports:
+
+- `-c AAPL MSFT` for explicit stock codes;
+- `--universe nasdaq`;
+- `--universe nyse`; or
+- `--universe all`.
+
+Codes and universe are mutually exclusive. The output path is optional. The
+application automatically chooses batch sizes, concurrency, retries, history
+depth and lane routing from tested defaults.
+
+### 23.3 Small-list lane
+
+At or below the benchmarked small-list threshold:
+
+1. normalize, deduplicate and verify every code;
+2. bulk-download the required daily history;
+3. calculate the immutable completed-daily foundation for every valid code;
+4. download recent 30-minute history for every valid code;
+5. build only full-duration completed current-session 1-hour/4-hour evidence;
+6. generate the workbook and log.
+
+The provisional threshold is 25 symbols. R8 benchmarking decides the frozen
+default.
+
+### 23.4 Large/all-market lane
+
+Above the threshold:
+
+1. discover or normalize the full requested universe;
+2. fetch adjusted daily OHLCV in adaptive bulk batches;
+3. calculate the unchanged V17 daily foundation in memory for all accepted
+   symbols;
+4. reduce each raw batch to compact result records and release the raw frames;
+5. queue every daily-qualified candidate;
+6. request non-critical metadata and recent 30-minute bars only for candidates;
+7. calculate completed current-session 1-hour/4-hour evidence;
+8. apply bounded automatic retries and batch splitting;
+9. retain daily results when enrichment is unavailable;
+10. write one final workbook and execution log.
+
+No arbitrary top-N candidate limit is allowed. Candidate enrichment may be
+incomplete only because of an explicit provider or run-budget limit, and the
+coverage reason must be visible.
+
+### 23.5 Responsiveness and resource gates
+
+The implementation must:
+
+- display source/progress status within 10 seconds;
+- update progress after every batch and at least every 30 seconds;
+- show completed/total, failures, elapsed time and phase;
+- avoid whole-market serial `Ticker.history()` calls;
+- avoid whole-market non-critical metadata calls;
+- keep only current raw batches plus compact results in memory;
+- remain at or below 1 GiB peak memory during the release benchmark;
+- terminate retries within a documented budget;
+- generate explicit partial output after recoverable provider degradation; and
+- preserve identical per-symbol results across lanes, batch sizes and order.
+
+R8 measures 2, 25, 100, 1,000 and the full discovered universe on the same
+machine and connection. Provisional goals are under 30 seconds for two
+symbols, under 90 seconds for 25 symbols and under 15 minutes for the
+full-universe daily foundation. These are goals until measured, because a free
+external endpoint provides no service guarantee.
+
+### 23.6 Provider-failure behavior
+
+Every network operation has:
+
+- a timeout;
+- bounded exponential backoff with jitter;
+- a finite attempt count;
+- batch splitting to isolate a malformed or failed symbol; and
+- a terminal reason code.
+
+Every input symbol ends as evaluated, rejected, duplicated or failed. When at
+least one security was evaluated, a provider-degraded run writes an explicit
+partial workbook. It never waits indefinitely or labels partial coverage
 complete.
+
+### 23.7 Runtime backtesting
+
+The daily reference replay may be refactored to discover today's universe and
+download its history at runtime. It must not read a local universe master,
+checkpoint or historical-data folder, and every result must be labeled
+`CURRENT_SURVIVOR_REFERENCE_ONLY`.
+
+No free runtime-only result may pass G1-G8. Several years of point-in-time,
+inactive/delisted daily coverage and several years of 30-minute coverage
+remain unavailable under the constraint. Prospective runtime outputs may
+support operational observation, but they do not repair historical
+survivorship bias.
+
+### 23.8 Release test matrix
+
+Required tests cover:
+
+- universe parsing and venue/instrument exclusions;
+- SEC corroboration conflicts;
+- equity-screen pagination and unresolved-instrument handling;
+- ticker normalization and duplication;
+- CLI input exclusivity;
+- absence of historical-input reads and persistent market-data writes;
+- isolation and cleanup of provider technical cache;
+- bulk provider-frame normalization;
+- completed-session filtering;
+- failed-symbol batch isolation;
+- calculation parity across lane, batch and order;
+- candidate-only enrichment;
+- completed 1-hour/4-hour construction;
+- bounded timeouts and retries;
+- partial-output and coverage labels;
+- raw-batch memory release; and
+- runtime-backtest evidence labeling.
+
+All existing deterministic tests remain mandatory.
+
+## 24. Immediate continuation instruction
+
+The next development session begins with runtime gates R1-R3:
+
+1. add failing tests for the current default local-input and persistent-cache
+   behavior;
+2. implement mutually exclusive `--codes` and `--universe` inputs;
+3. remove the default local universe file and persistent-history cache from the
+   runtime path;
+4. implement and fixture-test the Nasdaq Trader universe adapter;
+5. add optional single-download SEC corroboration;
+6. implement the normalized bulk daily-data adapter;
+7. prove exact daily calculation parity across direct and batched paths; and
+8. benchmark 2, 25 and 100 symbols before choosing the first batch defaults.
+
+Only after R3 passes may work proceed to candidate-only intraday enrichment,
+full-universe benchmarks and runtime reference backtesting. No classifier,
+threshold, BUY rule or activation flag may change during this sequence.
