@@ -1,5 +1,11 @@
 # U.S. Previous-Session / Current-Session Momentum Review
 
+Document role: supporting calculation and candle-construction specification
+
+Primary authority: `MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`
+
+Status: implemented research mechanics; classification remains non-binding
+
 ## Purpose
 
 V17 tests one narrow proposition:

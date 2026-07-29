@@ -32,6 +32,31 @@ It defines:
 
 Material under any `Retired` directory is not part of this specification.
 
+### 1.1 Documentation authority and maintenance
+
+This blueprint is the primary development authority. The other active
+documents have narrower supporting roles:
+
+- the engine document specifies calculation mechanics;
+- the research protocol and field guide specify panel behavior and terminology;
+- the validation records preserve evidence at the time it was measured;
+- the handover preserves the tagged foundation state;
+- the action plan tracks the ordered execution gates; and
+- the changelog records documentation and implementation transitions.
+
+Supporting documents may add detail, but may not contradict this blueprint.
+When calculation logic, data contracts, outcomes, gates, goals or activation
+status change, the same commit must update:
+
+1. this blueprint;
+2. every affected supporting document;
+3. the README when entry-point guidance changes; and
+4. the changelog with what changed and why.
+
+Validation records remain evidence records. Do not rewrite their measured
+results to match a later hypothesis; create a new validation record and update
+the current gate status instead.
+
 ## 2. Mission and current decision
 
 The mission is to build an evidence-based, stock-level Momentum Engine that:

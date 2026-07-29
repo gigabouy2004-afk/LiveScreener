@@ -89,8 +89,8 @@ The engine follows five non-negotiable rules:
   contract for the next identification layer.
 - `docs/MOMENTUM_RESEARCH_FIELD_GUIDE.md` — plain explanation of backtest
   columns.
-- `docs/HANDOVER_V17_MOMENTUM_FOUNDATION_2026-07-30.md` — authoritative
-  baseline status, reproduction commands, guardrails and continuation runbook.
+- `docs/HANDOVER_V17_MOMENTUM_FOUNDATION_2026-07-30.md` — immutable
+  tagged-baseline evidence and reproduction record.
 - `docs/ACTION_PLAN_V17_CONTINUATION_2026-07-30.md` — current prioritized
   continuation plan and promotion gates.
 - `CHANGELOG.md` — release history.
@@ -104,3 +104,7 @@ promotion-quality point-in-time NYSE/Nasdaq daily archive.
 Historical documentation and generated test evidence are stored under
 `Retired`. Retired material is non-authoritative and must not be used for
 current requirements or decisions unless the owner explicitly reactivates it.
+
+When a calculation, data contract, outcome, gate, goal or activation status
+changes, update the master blueprint, affected supporting documents and this
+changelog in the same commit.

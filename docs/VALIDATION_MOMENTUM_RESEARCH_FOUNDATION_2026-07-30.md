@@ -1,5 +1,14 @@
 # Momentum Research Foundation Validation — 2026-07-30
 
+Document role: immutable validation evidence for the implemented research
+foundation
+
+Primary authority for current development:
+`MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`
+
+Evidence status: passed for mechanics; no classifier or production rule
+approved
+
 ## Decision
 
 The research foundation is ready for point-in-time archive ingestion.

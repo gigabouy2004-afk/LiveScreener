@@ -1,5 +1,12 @@
 # Momentum Identification Research Protocol
 
+Document role: supporting point-in-time research and outcome protocol
+
+Primary authority: `MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`
+
+Status: implemented research infrastructure; classifier research is blocked
+pending an accepted point-in-time daily archive
+
 ## Purpose
 
 This work builds an evidence-based stock-level momentum identification layer.

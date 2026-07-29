@@ -1,5 +1,11 @@
 # Momentum Research Panel — Plain Field Guide
 
+Document role: supporting dictionary for research-panel fields
+
+Primary authority: `MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`
+
+Status: current for the implemented panel foundation
+
 The research panel is deliberately detailed, but its column names describe
 their contents without requiring internal version knowledge.
 

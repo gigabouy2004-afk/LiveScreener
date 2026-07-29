@@ -8,7 +8,10 @@ Baseline commit: `3586f24cb4e8390e66476e30f895e1a3ce3ff430`
 
 Baseline tag: `baseline-v17-momentum-foundation-2026-07-30`
 
-Status: initiated from the approved V17 momentum-foundation handover
+Document role: active execution plan supporting the master blueprint
+
+Status: active; first blocking dependency is the promotion-quality daily
+archive
 
 ## Governing decision
 
@@ -46,6 +49,9 @@ The following V17 documents form the active supporting set:
 Material under any `Retired` directory is historical or invalid and must not
 be used for current requirements, calculations, thresholds, conclusions or
 plans unless the owner explicitly reactivates it.
+
+If this plan changes a contract, gate or goal, update the master blueprint and
+changelog in the same commit.
 
 ## Starting position
 

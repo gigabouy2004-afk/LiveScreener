@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-07-30 - Active documentation synchronization
+
+### Changed
+
+- Updated every active V17 document to name
+  `docs/MOMENTUM_ENGINE_MASTER_BLUEPRINT.md` as the primary development
+  authority.
+- Assigned explicit roles to the engine specification, research protocol,
+  field guide, validation records, tagged handover and action plan.
+- Updated the handover file map and continuation guidance for the cleaned V17
+  structure.
+- Removed ambiguity between current development instructions and immutable
+  historical evidence.
+
+### Maintenance rule
+
+Future changes to calculations, data contracts, outcomes, gates, goals or
+activation status must update the master blueprint, each affected supporting
+document, the README when entry guidance changes, and this changelog in the
+same commit.
+
 ## 2026-07-30 - Standalone Momentum Engine authority
 
 ### Added

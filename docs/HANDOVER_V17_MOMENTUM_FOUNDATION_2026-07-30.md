@@ -1,8 +1,18 @@
 # V17 Momentum Foundation — Baseline Handover
 
+Document role: immutable handover for the tagged V17 foundation baseline
+
+Primary authority for current development:
+`MOMENTUM_ENGINE_MASTER_BLUEPRINT.md`
+
+Handover status: foundation evidence remains valid; continuation starts from
+the master blueprint and active action plan
+
 Date: 2026-07-30
 
 Baseline branch: `V17`
+
+Baseline commit: `3586f24cb4e8390e66476e30f895e1a3ce3ff430`
 
 Baseline tag: `baseline-v17-momentum-foundation-2026-07-30`
 
@@ -201,11 +211,19 @@ Detailed evidence is in
 
 ## File map
 
-- `docs/MOMENTUM_RESEARCH_PROTOCOL.md` — authoritative research contract.
+- `docs/MOMENTUM_ENGINE_MASTER_BLUEPRINT.md` — primary, self-contained
+  development authority.
+- `docs/ACTION_PLAN_V17_CONTINUATION_2026-07-30.md` — active ordered gates and
+  immediate continuation steps.
+- `docs/MOMENTUM_RESEARCH_PROTOCOL.md` — supporting point-in-time research
+  contract.
 - `docs/MOMENTUM_RESEARCH_FIELD_GUIDE.md` — plain-language panel dictionary.
 - `docs/VALIDATION_MOMENTUM_RESEARCH_FOUNDATION_2026-07-30.md` — validation
   record and bounded smoke results.
+- `docs/VALIDATION_V17_D1_MTF_2026-07-29.md` — five-year inherited-rule and
+  multi-timeframe gate evidence.
 - `docs/ENGINE_V17_SHADOW.md` — inherited calculation and safety detail.
+- `CHANGELOG.md` — active implementation and documentation transition record.
 - `momentum_research.py` — feature, outcome and chronological-split library.
 - `build_momentum_research_panel.py` — strict archive ingestion and panel
   writer.
@@ -214,6 +232,7 @@ Detailed evidence is in
 - `v17_mtf.py` — U.S. calendar and current-session intraday construction.
 - `v17_mtf_replay.py` — historical intraday cutoff replay.
 
-Old filenames containing earlier internal time labels remain only as historical
-artifacts. This handover and the momentum research protocol govern all new
-human-readable terminology.
+Superseded pre-V17 documentation and generated baseline results are stored
+under `Retired` for recovery and audit only. They do not govern current
+development. The master blueprint governs all new work and human-readable
+terminology.
