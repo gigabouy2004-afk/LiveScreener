@@ -4,6 +4,8 @@ __pycache__/
 *.xlsx
 *.xls
 output/
+Retired/Test Results/
+Retired/Generated/
 .pytest_cache/
 .venv/
 venv/
