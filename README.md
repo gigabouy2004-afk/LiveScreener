@@ -1,12 +1,10 @@
 # LiveScreener
 
-LiveScreener is a per-ticker technical baseline scanner. The current development
-baseline is `Live_Scanner_v14_Enhanced.py`; `Live_Scanner_v14.py` is retained as
-the unchanged V14 reference. `Live_Scanner_v15.py` is an experimental shadow
-engine: it preserves V14 classifications while recording stricter momentum-
-quality and entry-quality assessments for validation.
-For live scans, V15 also reports Beta for equities and ETFs and three-year
-Alpha for ETFs; stock Alpha is intentionally blank.
+LiveScreener is a per-ticker technical baseline scanner. The `V17` research
+branch adds `Live_Scanner_v17.py`: a U.S.-only shadow engine whose authority is
+the latest fully completed NYSE/Nasdaq daily candle. Full-duration completed
+4H and 1H observations describe whether that daily thesis is progressing or
+regressing; they cannot change the daily result.
 
 The engine is a screener, not an automated trading system. It reports a
 repeatable status for each ticker and expects the end user to perform offline
@@ -16,8 +14,9 @@ verification before acting on a candidate.
 
 - Release date: 2026-07-25
 - Reference baseline: `Live_Scanner_v14.py`
-- Current development baseline: `Live_Scanner_v14_Enhanced.py`
-- Experimental shadow engine: `Live_Scanner_v15.py`
+- Carried daily calculation: V16 completed-D1 calculation
+- Current research engine: `Live_Scanner_v17.py`
+- V17 status: non-binding; not approved as a momentum classifier
 - Python: 3.10 or later
 - Market data: Yahoo Finance through `yfinance`
 - Default concurrency: 3 independent ticker workers
@@ -71,6 +70,19 @@ In the V15 `Details` worksheet, Beta and Alpha are placed immediately after
 Price and Currency. The pane is frozen at `L2`, so columns A through K and the
 header row remain visible while scrolling.
 
+Run the V17 completed-D1 / MTF shadow:
+
+```powershell
+python .\Live_Scanner_v17.py `
+  -c AAPL MSFT NVDA `
+  --live-candle-mode completed `
+  -o .\output\V17_D1_MTF_Shadow.xlsx
+```
+
+V17 accepts only provider-verified NYSE/Nasdaq equity listings. Premarket,
+postmarket, partial daily candles, ETFs, NYSE American/Arca and international
+listings are excluded.
+
 ## Design contract
 
 The engine follows five non-negotiable rules:
@@ -83,10 +95,22 @@ The engine follows five non-negotiable rules:
    The complete final poll is retained.
 4. The fixed core calculation window determines the signal. Adaptive
    MAX/5Y/1Y history is advisory output only.
-5. Currency and market-session handling follow the ticker's listing metadata;
-   the scanner is not restricted to U.S. listings.
+5. Legacy engines retain their documented market routing. V17 is deliberately
+   restricted to provider-verified NYSE/Nasdaq equities and the XNYS calendar.
 
 ## Repository contents
+
+- `Live_Scanner_v17.py` — completed-D1 authority plus non-binding completed
+  4H/1H diagnostics.
+- `v17_mtf.py` — U.S. exchange-calendar, candle-construction and diagnostic
+  module.
+- `v17_us_daily_backtest.py` — vectorized multi-year completed-D1 reference
+  replay.
+- `v17_mtf_replay.py` — timestamp-correct daily/30-minute archive replay.
+- `v17_analyze_daily_results.py` — descriptive indicator cohort analysis.
+- `docs/ENGINE_V17_SHADOW.md` — V17 calculation and safety contract.
+- `docs/VALIDATION_V17_D1_MTF_2026-07-29.md` — five-year evidence, limitations
+  and activation-gate decision.
 
 - `Live_Scanner_v14.py` — unchanged V14 reference baseline.
 - `Live_Scanner_v14_Enhanced.py` — enhanced threaded and historically

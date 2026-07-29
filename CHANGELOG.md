@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased - V17 completed-D1 / MTF shadow
+
+### Added
+
+- U.S.-only V17 research entry point carrying forward the V16 completed-daily
+  calculation.
+- XNYS calendar handling for sessions, holidays, weekends, early closes and
+  completed trading weeks.
+- Session-anchored full-duration 1H and 4H diagnostics reconstructed from
+  completed regular-session 30-minute bars.
+- EMA, MACD, ADX/DI, RSI, ATR, Stochastic and same-slot volume evidence on each
+  intraday timeframe.
+- Explicit progress/regress fields, support-check availability, short-tail
+  exclusions and freshness flags.
+- Multi-year completed-D1 backtester, 30-minute archive replay harness and
+  descriptive diagnostic analyzer.
+- Deterministic V17 calendar, scope, candle, indicator, freshness and replay
+  tests.
+
+### Validation
+
+- 64 tracked deterministic/regression tests pass.
+- Five-year daily reference replay covered 3,445 strict NYSE/Nasdaq non-ETF
+  symbols, processed 3,236 and produced 30,620 non-overlapping five-session
+  trades with a -0.0627% gross mean and 0.9756 profit factor.
+- The D1 rules fail the promotion gate. Multi-year 4H/1H efficacy remains
+  untested pending a replayable several-year 30-minute archive.
+
+### Safety
+
+- Partial daily and extended-hours candles cannot enter V17.
+- Short end-of-session tails are excluded rather than relabelled as complete
+  1H/4H bars.
+- Provider metadata must verify both an equity instrument and NYSE/Nasdaq
+  listing.
+- V17 always leaves classification activation and true-momentum confirmation
+  false.
+
 ## Unreleased - V15 shadow momentum quality
 
 ### Added
