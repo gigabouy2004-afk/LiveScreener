@@ -1,5 +1,10 @@
 # V17 D1/MTF Validation Record — 2026-07-29
 
+> Historical record: this document used `D1` to mean the daily timeframe.
+> Human-readable output now uses `1D`, `previous completed session`, `current
+> session` and `next session`. The numerical five-year findings remain
+> unchanged.
+
 ## Decision
 
 V17 remains a non-binding research engine.

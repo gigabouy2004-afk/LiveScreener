@@ -1,13 +1,12 @@
-# V17 U.S. Completed-D1 / Multi-Timeframe Shadow Engine
+# U.S. Previous-Session / Current-Session Momentum Review
 
 ## Purpose
 
 V17 tests one narrow proposition:
 
-> A momentum interpretation should begin with the latest fully completed U.S.
-> regular-session daily candle. Completed 4-hour and 1-hour evidence may
-> describe how that daily thesis is progressing or regressing, but may not
-> rewrite the daily result.
+> A momentum interpretation begins with the traded session before today.
+> Completed 4-hour and 1-hour observations from today may describe how that
+> daily thesis is developing, but may not rewrite the daily result.
 
 V17 covers NYSE- and Nasdaq-listed U.S. equities only. Provider metadata must
 verify both an equity instrument and a NYSE/Nasdaq venue. NYSE American, NYSE
@@ -33,13 +32,13 @@ V17 carries forward V16's completed-daily calculation:
 - EMA slopes, prior 52-week-high proximity and ATR extension; and
 - V16's `NONE`, `WEAK`, `DEVELOPING` and `LEADER` shadow states.
 
-The baseline session is the latest fully completed exchange session, not the
-previous calendar date. The XNYS exchange calendar resolves weekends, market
-holidays and early closes for both NYSE and Nasdaq timing.
+The foundation is the traded session immediately before the current session,
+not the previous calendar date. The XNYS exchange calendar resolves weekends,
+market holidays and early closes for both NYSE and Nasdaq timing.
 
-Before or during a regular session, the baseline is the prior completed
-session. After the official close, today's completed daily candle can become
-the baseline once the provider publishes it.
+Today remains the current session before, during and after its official close.
+Today's daily candle becomes the previous-session foundation only when the
+next trading session begins.
 
 Premarket, postmarket and partially formed daily candles never enter the daily
 calculation.
@@ -68,9 +67,9 @@ Each timeframe reports the numbers of excluded short-tail and incomplete
 buckets. Every retained 1H/4H observation reports its source count and duration
 and has `bar_is_short = False`.
 
-An active source, 1H or 4H bar is excluded. A prior-session 4H bar may provide
-historical context, but it is not counted as fresh execution-session
-confirmation.
+An active source, 1H or 4H bar is excluded. A prior-session lower-timeframe bar
+may provide internal mathematical warm-up, but no prior-session 4H/1H state is
+exposed, qualified or used as today's progression comparison.
 
 ## Indicator decision
 
@@ -126,8 +125,8 @@ silently compared with a different category of volume observation.
 ## Combined shadow states
 
 The daily status, daily signal and daily momentum state remain authoritative.
-The completed intraday evidence produces a separate
-`v17_current_development_state`:
+The completed current-session evidence produces a separate internal
+development state:
 
 | State | Meaning |
 |---|---|
@@ -151,20 +150,22 @@ v17_operational_status_unchanged = True
 ## Backtesting contract
 
 Daily-only replay can use many years of adjusted OHLCV and can test whether the
-completed-D1 context is reproducible. It cannot validate the incremental value
-of 4H/1H evidence.
+previous-session context is reproducible. It cannot validate the incremental
+value of current-session 4H/1H evidence.
 
 A valid V17 multi-timeframe replay must have historical 30-minute regular-
 session bars and must simulate a defined execution cutoff. At each replay
 point:
 
-1. the daily calculation sees data only through the latest completed daily
-   session;
-2. the intraday calculation sees only source bars completed by the cutoff;
+1. the daily calculation sees data only through the traded session before the
+   replay date;
+2. the intraday calculation exposes only current-session source bars completed
+   by the cutoff;
 3. the 1H/4H aggregation is reconstructed using the exchange schedule known at
    that timestamp;
 4. the complete diagnostic vector is saved before forward outcomes are joined;
-5. next-session and multiple forward-horizon returns, MFE and MAE are measured;
+5. entry-session and multiple forward-horizon returns, MFE and MAE are
+   measured;
 6. U.S. development states are compared out-of-sample; and
 7. costs, slippage, liquidity and overlapping-position effects are disclosed.
 
@@ -187,9 +188,9 @@ owner approves a separate activation change.
 python .\Live_Scanner_v17.py `
   -c AAPL MSFT NVDA `
   --live-candle-mode completed `
-  -o .\output\V17_D1_MTF_Shadow.xlsx
+  -o .\output\Momentum_Review.xlsx
 ```
 
-The workbook records the unchanged V16-derived completed-D1 result, every
-latest 4H/1H diagnostic, freshness flags, and the non-binding V17 development
-state.
+The visible workbook records the previous-session daily foundation and
+plain-language current-session 4H/1H review. Technical diagnostics are retained
+in a hidden sheet for reproducibility.

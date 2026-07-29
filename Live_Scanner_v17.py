@@ -15,6 +15,10 @@ import time
 from collections import Counter
 from urllib.parse import quote
 
+from plain_language_output import (
+    build_plain_review_frame,
+    format_plain_review_worksheet,
+)
 from v17_mtf import (
     SOURCE_PERIOD as V17_INTRADAY_SOURCE_PERIOD,
     US_MARKET_TZ,
@@ -604,10 +608,9 @@ def get_market_context(
     phase = "REGULAR" if resolved["phase"] == "REGULAR" else "CLOSED"
     effective_mode = "completed"
     reason = (
-        "V17 uses the latest fully completed NYSE regular-session daily "
-        f"candle as the authoritative baseline; execution phase="
-        f"{resolved['phase']}. Premarket, postmarket, and partial daily "
-        f"candles are excluded. Calendar={resolved['calendar_source']}."
+        "The previous completed trading session is the daily foundation; "
+        f"current-session phase={resolved['phase']}. Premarket, postmarket "
+        "and partial daily candles are excluded."
     )
 
     return {
@@ -632,6 +635,9 @@ def get_market_context(
         "_v17_phase": resolved["phase"],
         "_latest_completed_session_date": resolved[
             "latest_completed_session_date"
+        ],
+        "_previous_traded_session_date": resolved[
+            "previous_traded_session_date"
         ],
         "_calendar_source": resolved["calendar_source"],
     }
@@ -841,12 +847,12 @@ PRESETS = {
 }
 
 DEFAULT_INPUT_CSV = "D:\\Tools\\00_StockCodeMaster\\02_Stock\\22-07-US_Common_Stocks_Master_Library.csv"
-DEFAULT_OUTPUT_XLSX = os.path.abspath("D:/TMP/Live_Screener/V17_D1_MTF_Shadow_Output.xlsx")
+DEFAULT_OUTPUT_XLSX = os.path.abspath("D:/TMP/Live_Screener/Momentum_Review.xlsx")
 DEFAULT_BACKTEST_CSV = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
         "output",
-        "V17_D1_Backtest.csv",
+        "Daily_Foundation_Backtest.csv",
     )
 )
 DEFAULT_FALLBACK_WATCHLIST = ["MU"]
@@ -3392,7 +3398,7 @@ def evaluate_stock_momentum(
         ]
         if not listing_scope["in_scope"]:
             return set_error(
-                "V17 supports NYSE/Nasdaq-listed U.S. securities only",
+                "Only verified NYSE/Nasdaq-listed U.S. equities are supported",
                 "Error_Unsupported_Listing",
             )
         if not supplied_company_name:
@@ -3416,6 +3422,11 @@ def evaluate_stock_momentum(
 
         if as_of_date:
             df = filter_to_as_of_date(df, as_of_date)
+            historical_context = {
+                "session_date": as_of_date,
+                "_timezone": US_MARKET_TZ,
+            }
+            df = drop_incomplete_daily_row(df, historical_context)
             if df.empty or len(df) < EMA_SLOW_PERIOD:
                 return set_error(
                     f"Insufficient history through {as_of_date}; needs {EMA_SLOW_PERIOD} daily candles",
@@ -3429,7 +3440,10 @@ def evaluate_stock_momentum(
             "market_time_et": None,
             "session_date": as_of_date,
             "candle_state": "HISTORICAL_COMPLETED",
-            "reason": "Historical as-of-date evaluation uses completed candles.",
+            "reason": (
+                "Historical evaluation uses the previous completed trading "
+                "session as its daily foundation."
+            ),
             "_fallback_used": False,
         }
 
@@ -3533,17 +3547,8 @@ def evaluate_stock_momentum(
                     if auto_confirmed_df is not None:
                         df = auto_confirmed_df.copy()
             else:
-                if market_context["phase"] == "REGULAR":
-                    df = drop_incomplete_daily_row(df, market_context)
-                    market_context["candle_state"] = "LAST_COMPLETED"
-                else:
-                    if not has_complete_session_daily_row(df, market_context):
-                        df = drop_trailing_incomplete_daily_row(df)
-                    market_context["candle_state"] = (
-                        "CURRENT_COMPLETED"
-                        if has_session_daily_row(df, market_context)
-                        else "LAST_COMPLETED"
-                    )
+                df = drop_incomplete_daily_row(df, market_context)
+                market_context["candle_state"] = "PREVIOUS_COMPLETED_SESSION"
 
                 if requested_mode == "auto":
                     auto_confirmed_df = df.copy()
@@ -4090,9 +4095,8 @@ def format_v17_details_worksheet(details_worksheet) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
-            "Version 17 U.S. D1/MTF Shadow Momentum Scanner: authoritative "
-            "last-completed daily baseline plus completed regular-session "
-            "4H/1H diagnostics"
+            "U.S. momentum research review: previous completed-session daily "
+            "foundation plus completed current-session 4-hour/1-hour evidence"
         )
     )
     parser.add_argument(
@@ -4128,9 +4132,9 @@ if __name__ == "__main__":
         choices=["completed"],
         default="completed",
         help=(
-            "V17 always uses the latest fully completed U.S. regular-session "
-            "daily candle. Partial daily and extended-hours candles are not "
-            "permitted."
+            "Always use the previous completed U.S. trading session as the "
+            "daily foundation. Partial daily and extended-hours candles are "
+            "not permitted."
         ),
     )
     parser.add_argument(
@@ -4154,7 +4158,7 @@ if __name__ == "__main__":
             "a complete concurrent poll; final-poll extras are retained."
         ),
     )
-    enhanced_group = parser.add_argument_group("V17 shadow controls")
+    enhanced_group = parser.add_argument_group("Research review controls")
     enhanced_group.add_argument(
         "--workers",
         type=int,
@@ -4330,19 +4334,15 @@ if __name__ == "__main__":
         run_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         as_of_label = as_of_date if as_of_date else datetime.now().strftime('%Y-%m-%d')
         initial_summary_message = (
-            f"Summary | AsOf={as_of_label} | DataThrough=PENDING | "
-            f"Input={input_ticker_count} | "
-            f"Total={total_tickers} | Workers={max_workers} | "
-            f"HistoryGuidance={historical_guidance_scope} | "
-            f"BuyStochMax={config['buy_stoch_max'] or 'OFF'} | "
-            f"Scanned=0 | MaxCount={max_count_results or 'OFF'} | "
-            f"MaxBuy={max_buy_results or 'OFF'} | BUY=0 | HOLD=0 | "
-            "IGNORE=0 | REJECT=0 | ERROR=0"
+            f"Current session={as_of_label} | "
+            "Daily foundation=PENDING | "
+            f"Equities requested={input_ticker_count} | "
+            f"Equities selected={total_tickers} | Reviewed=0"
         )
 
         print("=" * 80, flush=True)
         print(
-            f" STARTING V17 D1/MTF SHADOW MOMENTUM SCANNER | {run_timestamp}",
+            f" STARTING MOMENTUM REVIEW | {run_timestamp}",
             flush=True,
         )
         print("=" * 80, flush=True)
@@ -4378,22 +4378,14 @@ if __name__ == "__main__":
             or run_diagnostics["run_quality_status"] == "INVALID"
         )
         summary_message = (
-            f"Summary | AsOf={as_of_label} | DataThrough={data_through} | "
-            f"Input={input_ticker_count} | "
-            f"Total={total_tickers} | Workers={max_workers} | "
-            f"HistoryGuidance={historical_guidance_scope} | "
-            f"BuyStochMax={config['buy_stoch_max'] or 'OFF'} | "
-            f"Scanned={processed_tickers} | MaxCount={max_count_results or 'OFF'} | "
-            f"MaxBuy={max_buy_results or 'OFF'} | BUY={counts[STATUS_BUY_SIGNAL]} | "
-            f"HOLD={counts[STATUS_HOLD]} | IGNORE={counts[STATUS_IGNORE]} | "
-            f"REJECT={counts[STATUS_REJECT]} | ERROR={counts[STATUS_ERROR]} | "
-            f"Momentum={run_diagnostics['momentum_state_breakup']} | "
-            f"ConfirmedBaselineBUY="
-            f"{run_diagnostics['confirmed_buy_count']} | "
-            f"ProvisionalBUY={run_diagnostics['provisional_buy_count']} | "
-            f"Phases={run_diagnostics['market_phase_breakup']} | "
-            f"AutoStates={run_diagnostics['auto_combined_state_breakup']} | "
-            f"RunQuality={run_diagnostics['run_quality_status']}"
+            f"Current session={as_of_label} | "
+            f"Daily foundation through={data_through} | "
+            f"Requested={input_ticker_count} | Reviewed={processed_tickers} | "
+            f"Existing BUY={counts[STATUS_BUY_SIGNAL]} | "
+            f"Existing HOLD={counts[STATUS_HOLD]} | "
+            f"Not selected={counts[STATUS_IGNORE] + counts[STATUS_REJECT]} | "
+            f"Data errors={counts[STATUS_ERROR]} | "
+            f"Run quality={run_diagnostics['run_quality_status']}"
         )
 
         for item in unordered_results:
@@ -4422,7 +4414,9 @@ if __name__ == "__main__":
         "fresh_for_execution_session", "bar_start", "bar_end",
         "bar_duration_minutes", "bar_is_short", "bar_source_count",
         "excluded_short_tail_count", "excluded_incomplete_bucket_count",
+        "historical_warmup_bars",
         "open", "high", "low", "close", "bar_return_pct",
+        "bar_open_to_close_pct", "session_return_pct",
         "ema_20", "ema_50", "ema_200", "macd", "macd_signal",
         "macd_hist", "macd_hist_change_1", "adx", "adx_plus_di",
         "adx_minus_di", "adx_change_1", "rsi", "rsi_change_1", "atr",
@@ -4606,139 +4600,50 @@ if __name__ == "__main__":
                 "_reported_provisional_signal"
             ].value_counts().to_dict()
 
+        current_support_count = int(
+            df_log["v17_current_development_state"]
+            .eq("TRUE_MOMENTUM_CANDIDATE")
+            .sum()
+        )
+        current_weakening_count = int(
+            df_log["v17_current_development_state"]
+            .eq("DAILY_MOMENTUM_REGRESSING")
+            .sum()
+        )
+        current_evidence_unavailable_count = int(
+            df_log["v17_current_development_state"]
+            .eq("DAILY_MOMENTUM_INTRADAY_UNAVAILABLE")
+            .sum()
+        )
         final_lines = [
             "-" * 100,
-            "V17 D1/MTF SHADOW MOMENTUM SCANNER - POST EXECUTION SUMMARY",
+            "MOMENTUM REVIEW - EXECUTION SUMMARY",
             "-" * 100,
             f"Started              : {execution_started.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Completed            : {execution_finished.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Elapsed              : {elapsed_text}",
-            f"As-of label          : {final_summary.get('as_of_date', 'Unavailable')}",
-            f"Data through         : {final_summary.get('data_through', 'Unavailable')}",
+            f"Current session      : {final_summary.get('as_of_date', 'Unavailable')}",
+            f"Daily foundation data: {final_summary.get('data_through', 'Unavailable')}",
             f"Input file           : {args.input if not args.codes else 'Direct command-line codes'}",
-            f"Codes read           : {input_ticker_count}",
-            f"Codes selected       : {total_tickers}",
-            f"Codes processed      : {final_summary.get('scanned_tickers', 0)}",
-            f"BUY SIGNAL           : {final_summary.get('buy_count', 0)}",
-            f"HOLD                 : {final_summary.get('hold_count', 0)}",
-            f"IGNORE               : {final_summary.get('ignore_count', 0)}",
-            f"REJECT               : {final_summary.get('reject_count', 0)}",
-            f"ERROR                : {final_summary.get('error_count', 0)}",
+            f"Equities requested  : {input_ticker_count}",
+            f"Equities reviewed   : {final_summary.get('scanned_tickers', 0)}",
+            f"Existing BUY results: {final_summary.get('buy_count', 0)}",
+            f"Existing HOLD results: {final_summary.get('hold_count', 0)}",
+            f"Not selected         : {final_summary.get('ignore_count', 0) + final_summary.get('reject_count', 0)}",
+            f"Data errors          : {final_summary.get('error_count', 0)}",
+            f"Supported today      : {current_support_count}",
+            f"Weakening today      : {current_weakening_count}",
+            f"Waiting for current data: {current_evidence_unavailable_count}",
             f"Run quality          : {final_summary.get('run_quality_status', 'UNKNOWN')}",
             (
-                "Quality reasons      : "
+                "Data-quality note    : "
                 + (
                     "; ".join(final_summary.get("run_quality_reasons", []))
                     or "None"
                 )
             ),
             f"Error rate           : {final_summary.get('error_rate_pct', 0.0):.2f}%",
-            (
-                "Rate-limit errors    : "
-                f"{final_summary.get('rate_limit_error_count', 0)} "
-                f"({final_summary.get('rate_limit_error_rate_pct', 0.0):.2f}%)"
-            ),
-            f"BUY symbols          : {buy_symbols}",
-            f"BUY breakup          : {buy_breakup or 'None'}",
-            (
-                "Confirmed baseline BUY: "
-                f"{final_summary.get('confirmed_buy_count', 0)}"
-            ),
-            (
-                "Confirmed symbols     : "
-                + (
-                    ",".join(
-                        final_summary.get("confirmed_buy_symbols", [])
-                    )
-                    or "None"
-                )
-            ),
-            (
-                "Momentum states      : "
-                f"{final_summary.get('momentum_state_breakup', {}) or 'None'}"
-            ),
-            (
-                "V17 development      : "
-                f"{final_summary.get('v17_development_state_breakup', {}) or 'None'}"
-            ),
-            (
-                "V17 MTF candidates   : "
-                f"{final_summary.get('v17_true_momentum_candidate_count', 0)}"
-            ),
-            (
-                "V17 4H relation      : "
-                f"{final_summary.get('v17_4h_relation_breakup', {}) or 'None'}"
-            ),
-            (
-                "V17 1H relation      : "
-                f"{final_summary.get('v17_1h_relation_breakup', {}) or 'None'}"
-            ),
-            f"Provisional BUY count: {len(provisional_rows)}",
-            f"Provisional symbols  : {provisional_symbols}",
-            f"Provisional breakup  : {provisional_breakup or 'None'}",
-            f"Shadow BUY count     : {len(shadow_buy_rows)}",
-            f"Shadow BUY symbols   : {shadow_buy_symbols}",
-            f"Shadow entry breakup : {shadow_entry_breakup or 'None'}",
-            (
-                "Exchange phases       : "
-                f"{final_summary.get('market_phase_breakup', {}) or 'None'}"
-            ),
-            (
-                "Auto combined states  : "
-                f"{final_summary.get('auto_combined_state_breakup', {}) or 'None'}"
-            ),
-            (
-                "Live overlays         : "
-                f"{final_summary.get('live_overlay_count', 0)} "
-                f"{final_summary.get('live_overlay_state_breakup', {}) or ''}"
-            ),
-            (
-                "Effective modes      : "
-                f"{final_summary.get('effective_mode_breakup', {}) or 'None'}"
-            ),
-            (
-                "Candle states        : "
-                f"{final_summary.get('candle_state_breakup', {}) or 'None'}"
-            ),
-            (
-                "Candle fallbacks     : "
-                f"{final_summary.get('candle_fallback_count', 0)}"
-            ),
-            (
-                "Classification mode  : V16 completed-D1 calculation carried "
-                "forward; V17 MTF fields are non-binding"
-            ),
-            f"Preset               : {args.preset}",
-            f"Concurrent workers   : {max_workers}",
-            (
-                "Beta/Alpha enrichment: "
-                f"{'ON' if args.include_beta_alpha else 'OFF'}"
-            ),
-            (
-                "Yahoo request policy : "
-                f"attempts={args.yahoo_max_attempts}; "
-                f"min_interval={args.yahoo_min_request_interval:.2f}s; "
-                f"retry_base={args.yahoo_retry_base_seconds:.2f}s"
-            ),
-            (
-                "Daily cache          : "
-                f"{'OFF' if args.disable_daily_cache else 'ON'}"
-            ),
-            (
-                "Historical guidance  : "
-                f"{historical_guidance_scope} "
-                "(input-count policy: <=100 MAX, <=1000 5Y, >1000 1Y)"
-            ),
-            f"Max-Count trigger    : {max_count_results or 'OFF'}",
-            f"Max-Buys trigger     : {max_buy_results or 'OFF'}",
-            (
-                "BUY stochastic limit: "
-                f"{config['buy_stoch_max']:.2f}"
-                if config["buy_stoch_max"] > 0
-                else "BUY stochastic limit: OFF"
-            ),
-            f"MACD                 : {MACD_FAST_PERIOD},{MACD_SLOW_PERIOD},{MACD_SIGNAL_PERIOD}",
-            f"Requested candle mode: {args.live_candle_mode}",
+            "Interpretation note   : Current-session evidence is research-only and cannot create a confirmed recommendation.",
             f"Output file          : {os.path.abspath(args.output)}",
             f"Log file             : {os.path.abspath(log_path)}",
             "-" * 100,
@@ -4758,6 +4663,7 @@ if __name__ == "__main__":
         summary_data.insert(7, {"Metric": "Direct command-line codes", "Value": cli_val})
 
         df_summary_sheet = pd.DataFrame(summary_data)
+        df_plain_review = build_plain_review_frame(df_log)
 
         df_details_data = df_log.copy()
 
@@ -4780,7 +4686,12 @@ if __name__ == "__main__":
 
         with pd.ExcelWriter(args.output, engine="openpyxl") as writer:
             df_summary_sheet.to_excel(writer, sheet_name="Summary", index=False)
-            df_details_sheet.to_excel(writer, sheet_name="Details", index=False)
+            df_plain_review.to_excel(writer, sheet_name="Review", index=False)
+            df_details_sheet.to_excel(
+                writer,
+                sheet_name="Technical Data",
+                index=False,
+            )
 
             workbook = writer.book
 
@@ -4789,9 +4700,13 @@ if __name__ == "__main__":
                 summary_ws.column_dimensions["A"].width = 30
                 summary_ws.column_dimensions["B"].width = 100
 
-            if "Details" in workbook.sheetnames:
-                details_worksheet = workbook["Details"]
+            if "Review" in workbook.sheetnames:
+                format_plain_review_worksheet(workbook["Review"])
+
+            if "Technical Data" in workbook.sheetnames:
+                details_worksheet = workbook["Technical Data"]
                 format_v17_details_worksheet(details_worksheet)
+                details_worksheet.sheet_state = "hidden"
 
         print(f"\nMulti-sheet XLSX written successfully: {os.path.abspath(args.output)}", flush=True)
 

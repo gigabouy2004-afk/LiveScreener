@@ -74,6 +74,10 @@ class UsCalendarContractTests(unittest.TestCase):
         self.assertEqual(context["phase"], "REGULAR")
         self.assertEqual(context["effective_mode"], "completed")
         self.assertEqual(context["candle_state"], "LAST_COMPLETED")
+        self.assertEqual(
+            context["_previous_traded_session_date"],
+            "2026-07-27",
+        )
 
 
 class CompletedIntradayBarTests(unittest.TestCase):
@@ -231,6 +235,10 @@ class MtfDiagnosticTests(unittest.TestCase):
         )
         self.assertFalse(output["mtf_4h_fresh_for_execution_session"])
         self.assertTrue(output["mtf_1h_fresh_for_execution_session"])
+        self.assertEqual(
+            output["mtf_1h_latest_session_date"],
+            last_session.isoformat(),
+        )
         self.assertFalse(output["v17_true_momentum_candidate"])
 
     def test_india_suffix_is_out_of_scope(self):
@@ -287,7 +295,7 @@ class ReplayCutoffTests(unittest.TestCase):
         self.assertEqual(baseline, "2026-07-27")
         self.assertEqual(pd.Timestamp(prefix.index[-1]).date().isoformat(), baseline)
 
-    def test_post_close_cutoff_can_use_current_completed_daily_candle(self):
+    def test_post_close_cutoff_still_uses_previous_session_foundation(self):
         calendar = v17_mtf.get_us_calendar()
         sessions = calendar.sessions_in_range("2025-01-01", "2026-07-28")
         daily = pd.DataFrame({
@@ -301,7 +309,36 @@ class ReplayCutoffTests(unittest.TestCase):
             daily,
             pd.Timestamp(datetime(2026, 7, 28, 16, 1, tzinfo=NY)),
         )
-        self.assertEqual(baseline, "2026-07-28")
+        self.assertEqual(baseline, "2026-07-27")
+
+    def test_first_current_hour_does_not_compare_with_previous_day_hour(self):
+        source = synthetic_source()
+        last_session = source.index[-1].date()
+        cutoff = datetime(
+            last_session.year,
+            last_session.month,
+            last_session.day,
+            10,
+            30,
+            tzinfo=NY,
+        )
+        output, _ = v17_mtf.evaluate_mtf_source(
+            source,
+            daily_result={
+                "status": "HOLD",
+                "output_signal": "No_Buy",
+                "momentum_state": "NONE",
+                "v16_primary_regime_passed": False,
+            },
+            cutoff=cutoff,
+        )
+        self.assertEqual(output["mtf_1h_bars"], 1)
+        self.assertEqual(
+            output["mtf_1h_progression_state"],
+            "CURRENT_SESSION_START",
+        )
+        self.assertEqual(output["mtf_1h_improved_components"], "")
+        self.assertEqual(output["mtf_1h_regressed_components"], "")
 
 
 class DailyBacktestScopeTests(unittest.TestCase):

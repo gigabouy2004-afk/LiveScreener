@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Timestamp-correct replay harness for V17 completed-D1/4H/1H diagnostics.
+"""Timestamp-correct previous-session/current-session replay harness.
 
 The harness can download a recent Yahoo smoke window or consume long-form
 daily and 30-minute archive files.  Archive mode is the intended path for the
-required several-year V17 validation.
+required several-year validation.
 """
 
 from __future__ import annotations
@@ -30,8 +30,8 @@ DEFAULT_FORWARD_SESSIONS = "1,5,10,20"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Replay V17 completed-D1 plus completed 4H/1H diagnostics at "
-            "historical U.S. execution cutoffs."
+            "Replay the previous-session daily foundation plus completed "
+            "current-session 4H/1H evidence at historical U.S. cutoffs."
         )
     )
     parser.add_argument("--daily-file")
@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir",
-        default=str(Path("output") / "V17_MTF_Replay"),
+        default=str(Path("output") / "Current_Session_Replay"),
     )
     parser.add_argument(
         "--cutoff-times",
@@ -188,7 +188,7 @@ def daily_prefix_for_cutoff(
     cutoff: pd.Timestamp,
 ) -> tuple[pd.DataFrame, str | None]:
     context = v17_mtf.us_market_context(cutoff)
-    completed_date = pd.Timestamp(context["latest_completed_session_date"])
+    completed_date = pd.Timestamp(context["previous_traded_session_date"])
     index_dates = pd.DatetimeIndex(daily_frame.index)
     if index_dates.tz is not None:
         index_dates = index_dates.tz_convert(NY).tz_localize(None)
@@ -209,7 +209,134 @@ def scalar_daily_fields(result: dict) -> dict:
     output = {}
     for key, value in result.items():
         if isinstance(value, (str, int, float, bool)) or value is None:
-            output[f"d1_{key}"] = value
+            output[f"previous_session_daily_{key}"] = value
+    return output
+
+
+def prepare_public_replay_panel(panel: pd.DataFrame) -> pd.DataFrame:
+    """Remove implementation flags and use plain temporal column names."""
+    if panel is None or panel.empty:
+        return pd.DataFrame()
+    renamed = {}
+    for column in panel.columns:
+        if column.startswith("mtf_4h_"):
+            public_name = column.replace(
+                "mtf_4h_",
+                "current_session_4h_",
+                1,
+            )
+            renamed[column] = public_name.replace(
+                "relation_to_daily",
+                "relation_to_previous_session_view",
+            )
+        elif column.startswith("mtf_1h_"):
+            public_name = column.replace(
+                "mtf_1h_",
+                "current_session_1h_",
+                1,
+            )
+            renamed[column] = public_name.replace(
+                "relation_to_daily",
+                "relation_to_previous_session_view",
+            )
+        elif column.startswith("d1_"):
+            renamed[column] = column.replace(
+                "d1_",
+                "previous_session_daily_",
+                1,
+            )
+    renamed.update({
+        "daily_baseline_session_date": "previous_completed_session",
+        "v17_current_development_state": "current_session_development_state",
+        "v17_true_momentum_candidate": (
+            "both_current_timeframes_support_previous_session"
+        ),
+        "v17_execution_session_date": "current_session",
+        "v17_execution_phase": "current_session_phase",
+        "v17_execution_timestamp": "review_cutoff",
+    })
+    output = panel.rename(columns=renamed)
+    hidden_exact = {
+        "engine_version",
+        "v17_shadow_mode",
+        "v17_classification_active",
+        "v17_operational_status_unchanged",
+        "v17_true_momentum_confirmed",
+    }
+    hidden_prefixes = (
+        "v17_listing_",
+        "v17_mtf_",
+        "v17_daily_",
+        "v17_calendar_",
+        "v17_intraday_",
+        "v17_market_",
+        "v17_latest_",
+        "v17_execution_",
+        "previous_session_daily_engine_version",
+        "previous_session_daily_v16_",
+        "previous_session_daily_v17_",
+    )
+    keep = [
+        column
+        for column in output.columns
+        if column not in hidden_exact
+        and not any(column.startswith(prefix) for prefix in hidden_prefixes)
+        and "shadow" not in column.lower()
+        and "classification_active" not in column.lower()
+    ]
+    output = output[keep].copy()
+
+    plain_development_states = {
+        "TRUE_MOMENTUM_CANDIDATE": (
+            "Both completed current-session timeframes support the "
+            "previous-session daily view"
+        ),
+        "DAILY_MOMENTUM_PARTIALLY_SUPPORTED": (
+            "One completed current-session timeframe supports the "
+            "previous-session daily view"
+        ),
+        "DAILY_MOMENTUM_REGRESSING": (
+            "Current-session evidence weakens the previous-session daily view"
+        ),
+        "DAILY_MOMENTUM_MIXED": (
+            "Current-session evidence is mixed"
+        ),
+        "DAILY_MOMENTUM_INTRADAY_UNAVAILABLE": (
+            "No completed current-session timeframe is available"
+        ),
+        "INTRADAY_IGNITION_DAILY_UNQUALIFIED": (
+            "Current-session strength is visible without a supporting "
+            "previous-session daily foundation"
+        ),
+        "DAILY_UNQUALIFIED": (
+            "The previous-session daily foundation is absent"
+        ),
+    }
+    if "current_session_development_state" in output.columns:
+        output["current_session_development_state"] = (
+            output["current_session_development_state"]
+            .replace(plain_development_states)
+        )
+
+    plain_relations = {
+        "SUPPORTIVE": "Supports the previous-session daily view",
+        "REGRESSING": "Weakens the previous-session daily view",
+        "MIXED": "Mixed against the previous-session daily view",
+        "UNAVAILABLE": "No completed current-session bar is available",
+    }
+    plain_progression = {
+        "CURRENT_SESSION_START": "First completed bar of the current session",
+        "PROGRESSED": "Improved during the current session",
+        "REGRESSED": "Deteriorated during the current session",
+        "MIXED": "Mixed changes during the current session",
+        "STABLE": "Broadly unchanged during the current session",
+        "UNAVAILABLE": "No completed current-session bar is available",
+    }
+    for column in output.columns:
+        if column.endswith("_relation_to_previous_session_view"):
+            output[column] = output[column].replace(plain_relations)
+        elif column.endswith("_progression_state"):
+            output[column] = output[column].replace(plain_progression)
     return output
 
 
@@ -410,18 +537,21 @@ def main() -> int:
         )
         print(f"{ticker}: {len(rows):,} cumulative replay rows", flush=True)
 
-    panel = pd.DataFrame(rows)
+    panel = prepare_public_replay_panel(pd.DataFrame(rows))
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    panel_path = output_dir / "V17_MTF_Replay_Panel.parquet"
-    csv_path = output_dir / "V17_MTF_Replay_Panel.csv"
-    summary_path = output_dir / "V17_MTF_Replay_Summary.json"
+    panel_path = output_dir / "Current_Session_Replay_Panel.parquet"
+    csv_path = output_dir / "Current_Session_Replay_Panel.csv"
+    summary_path = output_dir / "Current_Session_Replay_Summary.json"
     panel.to_parquet(panel_path, index=False)
     panel.to_csv(csv_path, index=False)
 
     summary = {
-        "engine": "V17_D1_MTF_SHADOW",
-        "classification_active": False,
+        "purpose": (
+            "Previous-session daily foundation with current-session "
+            "lower-timeframe research evidence"
+        ),
+        "production_classification": False,
         "source_mode": source_mode,
         "symbols": common,
         "rows": int(len(panel)),
@@ -431,17 +561,17 @@ def main() -> int:
         "forward_session_horizons": horizons,
         "development_state_outcomes": grouped_outcome_summary(
             panel,
-            "v17_current_development_state",
+            "current_session_development_state",
             horizons,
         ),
         "daily_momentum_state_outcomes": grouped_outcome_summary(
             panel,
-            "d1_momentum_state",
+            "previous_session_daily_momentum_state",
             horizons,
         ),
         "method_notes": [
-            "Daily context is limited to the latest fully completed XNYS session at each cutoff.",
-            "Only completed regular-session 30-minute source bars enter 1H/4H diagnostics.",
+            "Daily context ends at the traded session before the replay date.",
+            "Only completed current-session regular-hours bars are exposed in the 1H/4H review.",
             "The same observation can appear at several daily cutoffs; inferential analysis must account for repeated ticker/session observations.",
             (
                 "YAHOO_RECENT_SMOKE is a mechanics check only. Several-year "

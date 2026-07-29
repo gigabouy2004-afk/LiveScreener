@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased - Daily momentum research foundation
+
+### Added
+
+- Plain previous-session/current-session terminology for visible output.
+- Visible `Review` workbook sheet with layman-readable daily, 4-hour and 1-hour
+  explanations; implementation flags are retained in a hidden technical sheet.
+- Point-in-time daily feature and future-outcome panel builder.
+- Observation-only, young-listing, developing-history and established-history
+  tracks without synthetic long-history indicators.
+- Hypothetical-entry-open 5/10/20-session return, MFE, MAE and provisional
+  ATR-path outcomes, where entry is the session immediately after the daily
+  foundation.
+- Chronological training/calibration/holdout assignment with boundary purging.
+- Research protocol, field guide and validation record.
+
+### Changed
+
+- Today remains the current session after its close; its daily candle does not
+  become the foundation until the next trading session.
+- Only today's completed lower-timeframe bars are exposed. Prior-session
+  lower-timeframe records are mathematical warm-up only.
+- The first completed lower-timeframe bar today is a starting observation and
+  is not compared with yesterday's lower-timeframe bar.
+
+### Validation
+
+- 78 deterministic/regression tests pass.
+- A 1,255-row cached-data smoke retained all history tracks and correctly
+  excluded outcomes crossing chronological boundaries.
+- No classifier or production rule was introduced.
+
 ## Unreleased - V17 completed-D1 / MTF shadow
 
 ### Added

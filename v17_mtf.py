@@ -139,6 +139,22 @@ def us_market_context(as_at: datetime | pd.Timestamp | None = None) -> dict:
         completed_label = candidate
 
     completed_bounds = us_session_bounds(completed_label.date())
+    if calendar is not None:
+        if bounds is not None:
+            previous_label = pd.Timestamp(
+                calendar.previous_session(pd.Timestamp(timestamp.date()))
+            )
+        else:
+            previous_label = pd.Timestamp(
+                calendar.date_to_session(
+                    pd.Timestamp(timestamp.date()),
+                    direction="previous",
+                )
+            )
+    else:
+        previous_label = pd.Timestamp(timestamp.date()) - pd.Timedelta(days=1)
+        while previous_label.weekday() >= 5:
+            previous_label -= pd.Timedelta(days=1)
     return {
         "market": "US",
         "timezone": str(US_MARKET_TZ),
@@ -150,6 +166,7 @@ def us_market_context(as_at: datetime | pd.Timestamp | None = None) -> dict:
             timestamp.date().isoformat() if bounds is not None else None
         ),
         "latest_completed_session_date": completed_label.date().isoformat(),
+        "previous_traded_session_date": previous_label.date().isoformat(),
         "latest_completed_session_close": (
             completed_bounds[1].isoformat() if completed_bounds is not None else None
         ),
@@ -457,12 +474,23 @@ def calculate_timeframe_indicator_frame(bars: pd.DataFrame) -> pd.DataFrame:
         smooth_window=6,
     )
 
-    frame["bar_return_pct"] = frame["close"].pct_change() * 100.0
-    frame["macd_hist_change_1"] = frame["macd_hist"].diff()
-    frame["adx_change_1"] = frame["adx"].diff()
-    frame["rsi_change_1"] = frame["rsi"].diff()
+    session_groups = frame.groupby("session_date", group_keys=False)
+    frame["bar_return_pct"] = session_groups["close"].pct_change() * 100.0
+    frame["bar_open_to_close_pct"] = (
+        frame["close"].div(frame["open"].where(frame["open"].ne(0))) - 1.0
+    ) * 100.0
+    frame["session_return_pct"] = (
+        frame["close"].div(
+            session_groups["open"].transform("first").where(
+                session_groups["open"].transform("first").ne(0)
+            )
+        ) - 1.0
+    ) * 100.0
+    frame["macd_hist_change_1"] = session_groups["macd_hist"].diff()
+    frame["adx_change_1"] = session_groups["adx"].diff()
+    frame["rsi_change_1"] = session_groups["rsi"].diff()
     frame["stoch_spread"] = frame["stoch_k"] - frame["stoch_d"]
-    frame["stoch_spread_change_1"] = frame["stoch_spread"].diff()
+    frame["stoch_spread_change_1"] = session_groups["stoch_spread"].diff()
     frame["volume_per_minute"] = (
         frame["volume"] / frame["duration_minutes"].replace(0, pd.NA)
     )
@@ -478,7 +506,9 @@ def calculate_timeframe_indicator_frame(bars: pd.DataFrame) -> pd.DataFrame:
     frame["volume_slot_ratio"] = (
         frame["volume_per_minute"] / frame["volume_rate_avg_20_same_slot"]
     )
-    frame["volume_slot_ratio_change_1"] = frame["volume_slot_ratio"].diff()
+    frame["volume_slot_ratio_change_1"] = session_groups[
+        "volume_slot_ratio"
+    ].diff()
 
     frame["trend_check_available"] = frame[
         ["close", "ema_20", "ema_50"]
@@ -536,6 +566,8 @@ def summarize_timeframe_diagnostics(
         "available": False,
         "timeframe": timeframe_name,
         "bars": 0,
+        "latest_session_date": None,
+        "fresh_for_execution_session": False,
         "diagnostic_bias": "UNAVAILABLE",
         "progression_state": "UNAVAILABLE",
         "relation_to_daily": "UNAVAILABLE",
@@ -543,6 +575,7 @@ def summarize_timeframe_diagnostics(
         "regressed_components": "",
         "support_count": 0,
         "support_max": 0,
+        "historical_warmup_bars": 0,
         "excluded_short_tail_count": int(
             (indicator_frame.attrs if indicator_frame is not None else {}).get(
                 "excluded_short_tail_count",
@@ -560,14 +593,26 @@ def summarize_timeframe_diagnostics(
         return base
 
     frame = indicator_frame.copy()
-    base["bars"] = int(len(frame))
+    base["historical_warmup_bars"] = int(len(frame))
     if len(frame) < MIN_INDICATOR_BARS:
         base["diagnostic_bias"] = "INSUFFICIENT_HISTORY"
         base["progression_state"] = "INSUFFICIENT_HISTORY"
         return base
 
-    latest = frame.iloc[-1]
-    previous = frame.iloc[-2]
+    current_frame = frame.loc[
+        frame["session_date"].astype(str).eq(
+            str(execution_session_date or "")
+        )
+    ].copy()
+    base["historical_warmup_bars"] = int(len(frame) - len(current_frame))
+    base["bars"] = int(len(current_frame))
+    if current_frame.empty:
+        base["diagnostic_bias"] = "NO_COMPLETED_CURRENT_SESSION_BAR"
+        base["progression_state"] = "NO_COMPLETED_CURRENT_SESSION_BAR"
+        return base
+
+    latest = current_frame.iloc[-1]
+    previous = current_frame.iloc[-2] if len(current_frame) >= 2 else None
     required = (
         "macd", "macd_signal", "macd_hist", "adx", "adx_plus_di",
         "adx_minus_di", "rsi", "atr", "stoch_k", "stoch_d",
@@ -619,42 +664,57 @@ def summarize_timeframe_diagnostics(
         elif current_number < previous_number - tolerance:
             regressed.append(name)
 
-    compare("price", latest["close"], previous["close"])
-    compare("macd_histogram", latest["macd_hist"], previous["macd_hist"])
-    if latest["adx_plus_di"] > latest["adx_minus_di"]:
-        compare("bullish_adx", latest["adx"], previous["adx"])
-    elif latest["adx_minus_di"] >= latest["adx_plus_di"]:
-        regressed.append("directional_movement")
-    compare("stochastic_spread", latest["stoch_spread"], previous["stoch_spread"])
-    compare("rsi", latest["rsi"], previous["rsi"])
-    compare(
-        "same_slot_volume",
-        latest["volume_slot_ratio"],
-        previous["volume_slot_ratio"],
-    )
-
-    if len(improved) >= 4 and len(improved) >= len(regressed) + 2:
-        progression_state = "PROGRESSED"
-    elif len(regressed) >= 4 and len(regressed) >= len(improved) + 2:
-        progression_state = "REGRESSED"
-    elif not improved and not regressed:
-        progression_state = "STABLE"
+    if previous is None:
+        progression_state = "CURRENT_SESSION_START"
     else:
-        progression_state = "MIXED"
+        compare("price", latest["close"], previous["close"])
+        compare("macd_histogram", latest["macd_hist"], previous["macd_hist"])
+        if latest["adx_plus_di"] > latest["adx_minus_di"]:
+            compare("bullish_adx", latest["adx"], previous["adx"])
+        elif latest["adx_minus_di"] >= latest["adx_plus_di"]:
+            regressed.append("directional_movement")
+        compare(
+            "stochastic_spread",
+            latest["stoch_spread"],
+            previous["stoch_spread"],
+        )
+        compare("rsi", latest["rsi"], previous["rsi"])
+        compare(
+            "volume_change",
+            latest["volume_per_minute"],
+            previous["volume_per_minute"],
+        )
 
-    bullish_cross = bool(
-        previous["stoch_k"] <= previous["stoch_d"]
-        and latest["stoch_k"] > latest["stoch_d"]
+        if len(improved) >= 4 and len(improved) >= len(regressed) + 2:
+            progression_state = "PROGRESSED"
+        elif len(regressed) >= 4 and len(regressed) >= len(improved) + 2:
+            progression_state = "REGRESSED"
+        elif not improved and not regressed:
+            progression_state = "STABLE"
+        else:
+            progression_state = "MIXED"
+
+    bullish_cross = (
+        bool(
+            previous["stoch_k"] <= previous["stoch_d"]
+            and latest["stoch_k"] > latest["stoch_d"]
+        )
+        if previous is not None
+        else None
     )
-    bearish_cross = bool(
-        previous["stoch_k"] >= previous["stoch_d"]
-        and latest["stoch_k"] < latest["stoch_d"]
+    bearish_cross = (
+        bool(
+            previous["stoch_k"] >= previous["stoch_d"]
+            and latest["stoch_k"] < latest["stoch_d"]
+        )
+        if previous is not None
+        else None
     )
     latest_session = str(latest.get("session_date") or "")
     result = {
         **base,
         "available": True,
-        "bars": int(len(frame)),
+        "bars": int(len(current_frame)),
         "latest_session_date": latest_session or None,
         "fresh_for_execution_session": bool(
             execution_session_date
@@ -670,6 +730,8 @@ def summarize_timeframe_diagnostics(
         "low": _rounded(latest["low"]),
         "close": _rounded(latest["close"]),
         "bar_return_pct": _rounded(latest["bar_return_pct"]),
+        "bar_open_to_close_pct": _rounded(latest["bar_open_to_close_pct"]),
+        "session_return_pct": _rounded(latest["session_return_pct"]),
         "ema_20": _rounded(latest["ema_20"]),
         "ema_50": _rounded(latest["ema_50"]),
         "ema_200": _rounded(latest["ema_200"]),

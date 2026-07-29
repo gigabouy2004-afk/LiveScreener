@@ -1,10 +1,10 @@
 # LiveScreener
 
 LiveScreener is a per-ticker technical baseline scanner. The `V17` research
-branch adds `Live_Scanner_v17.py`: a U.S.-only shadow engine whose authority is
-the latest fully completed NYSE/Nasdaq daily candle. Full-duration completed
-4H and 1H observations describe whether that daily thesis is progressing or
-regressing; they cannot change the daily result.
+branch adds a U.S.-only research engine whose daily foundation is the traded
+session before today. Full-duration completed 4H and 1H observations from the
+current session describe whether that thesis is developing; they cannot change
+the daily result.
 
 The engine is a screener, not an automated trading system. It reports a
 repeatable status for each ticker and expects the end user to perform offline
@@ -14,7 +14,7 @@ verification before acting on a candidate.
 
 - Release date: 2026-07-25
 - Reference baseline: `Live_Scanner_v14.py`
-- Carried daily calculation: V16 completed-D1 calculation
+- Carried daily calculation: completed previous-session calculation
 - Current research engine: `Live_Scanner_v17.py`
 - V17 status: non-binding; not approved as a momentum classifier
 - Python: 3.10 or later
@@ -70,18 +70,24 @@ In the V15 `Details` worksheet, Beta and Alpha are placed immediately after
 Price and Currency. The pane is frozen at `L2`, so columns A through K and the
 header row remain visible while scrolling.
 
-Run the V17 completed-D1 / MTF shadow:
+Run the momentum review:
 
 ```powershell
 python .\Live_Scanner_v17.py `
   -c AAPL MSFT NVDA `
   --live-candle-mode completed `
-  -o .\output\V17_D1_MTF_Shadow.xlsx
+  -o .\output\Momentum_Review.xlsx
 ```
 
 V17 accepts only provider-verified NYSE/Nasdaq equity listings. Premarket,
 postmarket, partial daily candles, ETFs, NYSE American/Arca and international
 listings are excluded.
+
+The next research stage is described in
+`docs/MOMENTUM_RESEARCH_PROTOCOL.md`. It builds a completed-daily observation
+and outcome panel for every eligible stock/session, retains young listings
+without fabricating missing history, and uses chronological training,
+calibration and holdout periods. It does not introduce a new BUY rule.
 
 ## Design contract
 
@@ -100,8 +106,8 @@ The engine follows five non-negotiable rules:
 
 ## Repository contents
 
-- `Live_Scanner_v17.py` — completed-D1 authority plus non-binding completed
-  4H/1H diagnostics.
+- `Live_Scanner_v17.py` — previous-session daily foundation plus non-binding
+  current-session 4H/1H evidence.
 - `v17_mtf.py` — U.S. exchange-calendar, candle-construction and diagnostic
   module.
 - `v17_us_daily_backtest.py` — vectorized multi-year completed-D1 reference
@@ -111,6 +117,17 @@ The engine follows five non-negotiable rules:
 - `docs/ENGINE_V17_SHADOW.md` — V17 calculation and safety contract.
 - `docs/VALIDATION_V17_D1_MTF_2026-07-29.md` — five-year evidence, limitations
   and activation-gate decision.
+- `momentum_research.py` — age-aware completed-daily feature, outcome and
+  chronological-split foundation.
+- `build_momentum_research_panel.py` — point-in-time archive panel builder.
+- `validate_momentum_research_panel.py` — unconditional chronological outcome
+  audit.
+- `plain_language_output.py` — compact visible workbook review without
+  internal flags.
+- `docs/MOMENTUM_RESEARCH_PROTOCOL.md` — nomenclature, data and validation
+  contract for the next identification layer.
+- `docs/MOMENTUM_RESEARCH_FIELD_GUIDE.md` — plain explanation of backtest
+  columns.
 
 - `Live_Scanner_v14.py` — unchanged V14 reference baseline.
 - `Live_Scanner_v14_Enhanced.py` — enhanced threaded and historically
