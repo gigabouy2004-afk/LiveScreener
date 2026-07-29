@@ -89,6 +89,11 @@ and outcome panel for every eligible stock/session, retains young listings
 without fabricating missing history, and uses chronological training,
 calibration and holdout periods. It does not introduce a new BUY rule.
 
+The authoritative V17 continuation package is
+`docs/HANDOVER_V17_MOMENTUM_FOUNDATION_2026-07-30.md`. Start there in a new
+session before changing calculations, outcome definitions or validation
+boundaries.
+
 ## Design contract
 
 The engine follows five non-negotiable rules:
@@ -128,6 +133,8 @@ The engine follows five non-negotiable rules:
   contract for the next identification layer.
 - `docs/MOMENTUM_RESEARCH_FIELD_GUIDE.md` — plain explanation of backtest
   columns.
+- `docs/HANDOVER_V17_MOMENTUM_FOUNDATION_2026-07-30.md` — authoritative
+  baseline status, reproduction commands, guardrails and continuation runbook.
 
 - `Live_Scanner_v14.py` — unchanged V14 reference baseline.
 - `Live_Scanner_v14_Enhanced.py` — enhanced threaded and historically

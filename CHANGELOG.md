@@ -15,6 +15,7 @@
   foundation.
 - Chronological training/calibration/holdout assignment with boundary purging.
 - Research protocol, field guide and validation record.
+- Authoritative V17 baseline handover and continuation runbook.
 
 ### Changed
 
